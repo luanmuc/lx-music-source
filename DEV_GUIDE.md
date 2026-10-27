@@ -243,6 +243,8 @@ on(request musicUrl)
 
 ## 八、测试清单（发布前必做）
 
+> **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
+
 1. **语法**：`node --check lx-source.js`；
 2. **加载**：mock `globalThis.lx` 跑一次 `send(inited)`，确认 `sources` 上报 5 平台、qualitys 正确；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
