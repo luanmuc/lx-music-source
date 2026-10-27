@@ -1,9 +1,9 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v11.11接口满编版：溯音酷我128k恢复(10-15实测Range 206可播)，kw 128k五路兜底(溯音酷我/星海后端/酷我官方/长青/念心)满编；探测歌曲池轮换(晴天/海阔天空/稻香)防单曲被风控误判；v11.10双音质分域探测/音质校验/音质优先保持
- * @version 11.11 接口满编版
+ * @description v11.12防错歌加固版：片段/试听特征词拒绝(D1)+兜底档歌名校验+时长校验(D4)杜绝播错歌；kw CDN链http→https升级(D2)；断路器仅对网络类错误熔断(D8)；探测一致性加固(gdWy/溯音163补Range可播性校验+溯音163歌曲池轮换)；清理级(D10)：死代码移除/长青念心模板工厂/双降级统一；保留v11.11接口满编+五路兜底+健康自愈
+ * @version 11.12 防错歌加固版
  * @author 豆包定制
- * @contribution 实测(2026-10-15)：溯音酷我flac✅206、128k✅恢复(10-07时410死链→10-15新签名可播)；溯音163(免费歌)✅；GDAPI(320)✅m801直链；星海后端(带X-Token)✅kw-bj；酷我官方✅206；网易云outer✅302；长青kw/念心kw✅302→car-er 206；仍失效:溯音QQ(-403)/溯音咪咕(502)/星海备(000)/星海zrcdy(410废弃)；上游全部无更新(pdone指纹一致/洛雪v2.12.6/星海51372B一致)
+ * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)，溯音163探测歌曲池已验证(2652820720/347230)；需真机抽查后再发Release
  */
 // ============================================================
 // 第一部分：常量配置
@@ -110,14 +110,18 @@ const PROBE_PASS_REQUIRED = 2;                    // 连续通过2次才判定�
 const PROBE_FAIL_REQUIRED = 2;                    // 连续失败2次才判定失效（防抖动）
 // v11.11：探测歌曲池轮换（晴天/海阔天空/稻香），避免单曲被风控导致探测误判
 const PROBE_SONG_POOL = ["晴天", "海阔天空", "稻香"];
+// v11.12 (D9)：溯音163 探测免费歌池（实测 code:0 + data[0].url 真实mp3；186016周杰伦VIP无url已排除）
+const PROBE_163_IDS = ["2652820720", "347230"];
 
 // 各源探测请求定义：仅保留当前可用源，失效源不再每轮空打
 function buildProbeConfig() {
   const probeSong = PROBE_SONG_POOL[(globalThis.__probeRound || 0) % PROBE_SONG_POOL.length];
   return {
     gdWy: {
+      // v11.12 (D9)：补 Range 可播性二次校验（防"网关200+签名过期410"假存活）；GD 探测 ID 暂固定 186016（沙箱不可达，未验证新曲）
       url: `${GD_API}&types=url&source=netease&id=186016&br=320`,
-      check: b => !!b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0
+      check: b => !!b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0,
+      extractUrl: b => (b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0) ? b.url : null
     },
     xinghaiBackend: {
       url: `${XINGHAI_BACKEND_API}?source=kw&name=${encodeURIComponent("晴天")}&singer=${encodeURIComponent("周杰伦")}&songmid=1&interval=&albumName=&quality=128k`,
@@ -125,8 +129,10 @@ function buildProbeConfig() {
       check: b => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0
     },
     suyin163: {
-      url: `${SUYIN_163_API}?id=2652820720`, // 探测用免费歌（code:0 + data[0].url 真实mp3）
-      check: b => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0
+      // v11.12 (D9)：免费歌池轮换 + Range 可播性二次校验（与溯音酷我探测标准一致）
+      url: `${SUYIN_163_API}?id=${PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length]}`,
+      check: b => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0,
+      extractUrl: b => (b && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0) ? b.data[0].url : null
     },
     suyinKuwo: {
       // v11.10 P0：双音质分域探测(flac br=1 + 128k br=7)，任一可播即算源存活；
@@ -460,16 +466,6 @@ async function httpGet(url, params = {}, timeoutType = 'default') {
   return res.body;
 }
 
-async function httpPost(url, body = {}, timeout = 60000) {
-  const res = await httpRequestWithRetry(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-    timeout
-  });
-  return res.body;
-}
-
 // v11.9 P0：轻量音频可播性判定——Range 取前1KB，206/200音频即视为可播；410/403/超时一律视为死链
 async function isAudioPlayable(audioUrl, timeoutMs = 3000) {
   if (!audioUrl || typeof audioUrl !== "string" || !HTTP_URL_REGEX.test(audioUrl)) return false;
@@ -492,35 +488,7 @@ async function isAudioPlayable(audioUrl, timeoutMs = 3000) {
 // ============================================================
 // 第五部分：歌曲信息与匹配工具
 // ============================================================
-function normalizeQuality(quality) {
-  const q = String(quality || "").toLowerCase();
-  if (q === "128k") return "low";
-  if (q === "320k") return "standard";
-  if (q === "flac" || q === "flac24bit" || q === "24bit") return "lossless";
-  return "128k";
-}
-
-function selectQuality(requestedQuality, supportedQualities) {
-  const requested = String(requestedQuality || "128k").toLowerCase();
-  if (supportedQualities.includes(requested)) return requested;
-  const idx = QUALITY_PRIORITY.indexOf(requested);
-  const start = idx >= 0 ? idx : QUALITY_PRIORITY.length - 1;
-  for (let i = start; i < QUALITY_PRIORITY.length; i++) {
-    if (supportedQualities.includes(QUALITY_PRIORITY[i])) return QUALITY_PRIORITY[i];
-  }
-  for (let i = QUALITY_PRIORITY.length - 1; i >= 0; i--) {
-    if (supportedQualities.includes(QUALITY_PRIORITY[i])) return QUALITY_PRIORITY[i];
-  }
-  return supportedQualities[0] || "128k";
-}
-
-function qualityToNetease(quality) {
-  const q = String(quality || "128k").toLowerCase();
-  if (q === "flac" || q === "flac24bit" || q === "hires" || q === "master" || q === "atmos" || q === "24bit") return "lossless";
-  if (q === "320k" || q === "192k") return "exhigh";
-  return "standard";
-}
-
+// v11.12 (D10)：已移除死代码 normalizeQuality/selectQuality/qualityToNetease（链级统一降级，源内直接使用请求音质）
 function qualityToSuyinQQ(quality) {
   const q = String(quality || "128k").toLowerCase();
   if (q === "flac24bit") return "hires";
@@ -532,10 +500,7 @@ function getMobileUserAgent() {
   return "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
 }
 
-function getSongId(songInfo) {
-  return (songInfo?.id || songInfo?.songmid || songInfo?.songId || songInfo?.hash || songInfo?.rid || songInfo?.mid || songInfo?.strMediaMid || songInfo?.mediaId || "").toString();
-}
-
+// v11.12 (D10)：已移除死代码 getSongId
 function getHashOrMid(songInfo) {
   return songInfo?.hash ?? songInfo?.songmid ?? songInfo?.id ?? null;
 }
@@ -551,26 +516,7 @@ function getQQSongId(songInfo) {
   return null;
 }
 
-function normalizeSongInfo(raw) {
-  const id = raw?.id || raw?.vid ? String(raw.id || raw.vid) : "";
-  return {
-    id, songmid: id, hash: id,
-    name: raw?.name ? String(raw.name) : "未知歌曲",
-    singer: raw?.artists ? String(raw.artists) : "未知歌手",
-    albumName: raw?.album ? String(raw.album) : "",
-    duration: raw?.duration ? Math.floor(Number(raw.duration) / 1000) : 0,
-    pic: raw?.cover || raw?.pic ? String(raw.cover || raw.pic) : "",
-    _raw: raw || {}
-  };
-}
-
-function getFirstData(response) {
-  const data = response?.data;
-  if (Array.isArray(data)) return data[0] || null;
-  if (data && typeof data === "object" && data[0]) return data[0];
-  return null;
-}
-
+// v11.12 (D10)：已移除死代码 normalizeSongInfo/getFirstData
 function normalizeKeyword(keyword) {
   if (!keyword) return "";
   return String(keyword)
@@ -613,13 +559,30 @@ function buildSearchKeywords(songInfo) {
   return keywords;
 }
 
+// v11.12 P0-1 (D1)：片段/试听特征词。必须对原始歌名匹配（normalizeKeyword 会删括号内容，如"难却(15秒0.8x片段)"归一化后与"难却"相同）
+const FRAGMENT_RE = /(15\s*秒|0\.?\s*8x|片段|试听|demo|preview|teaser)/i;
+
+// v11.12 P0-4 (D4)：时长归一化到秒（兼容 ms/秒混用：>5000 视为毫秒）
+function normalizeDurationSec(d) {
+  const v = Number(d);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return v > 5000 ? Math.floor(v / 1000) : Math.round(v);
+}
+
 function songInfoMatch(responseData, songInfo) {
   const song = responseData?.song || responseData?.data?.song || "";
   const singer = responseData?.singer || responseData?.data?.singer || "";
   const album = responseData?.album || responseData?.data?.album || "";
   if (!titleMatch(song, songInfo?.name || "")) return false;
+  // v11.12 P0-1 (D1)：目标歌名无片段特征词而返回歌名含 → 拒绝（防《难却》匹配到15秒0.8x片段）
+  const targetName = String(songInfo?.name || "");
+  if (targetName && song && !FRAGMENT_RE.test(targetName) && FRAGMENT_RE.test(String(song))) return false;
   if (songInfo?.singer && singer && !titleMatch(singer, songInfo.singer)) return false;
   if ((songInfo?.albumName || songInfo?.album) && album && !titleMatch(album, songInfo.albumName || songInfo.album)) return false;
+  // v11.12 P0-4 (D4)：双方时长已知且差>5s → 拒绝（片段版时长明显短于完整版）
+  const tDur = normalizeDurationSec(songInfo?.duration);
+  const rDur = normalizeDurationSec(responseData?.duration || responseData?.data?.duration || responseData?.musicInfo?.duration);
+  if (tDur && rDur && !durationMatch(tDur, rDur, 5)) return false;
   return true;
 }
 
@@ -631,6 +594,8 @@ function parseMessageSongInfo(message) {
     if (line.startsWith("歌名：")) result.song = line.replace("歌名：", "").trim();
     if (line.startsWith("歌手：")) result.singer = line.replace("歌手：", "").trim();
     if (line.startsWith("专辑：")) result.album = line.replace("专辑：", "").trim();
+    // v11.12 P0-4 (D4)：消息路径带时长时一并解析，供时长校验使用
+    if (line.startsWith("时长：")) result.duration = Number(line.replace("时长：", "").trim()) || 0;
   }
   return result.song ? result : null;
 }
@@ -639,6 +604,12 @@ function validateUrl(url, sourceName) {
   if (!url || typeof url !== "string") throw new Error(`${ERROR_CODES.NOT_FOUND}: ${sourceName}返回空URL`);
   if (!HTTP_URL_REGEX.test(url.trim())) throw new Error(`${ERROR_CODES.PARAM_ERROR}: ${sourceName}非法URL格式`);
   return url;
+}
+
+// v11.12 P0-3 (D2)：kw CDN 音频链 http→https（实测 https 升级后 206 可播，部分网络/播放器对 http 音频处理异常）
+function upgradeToHttps(url) {
+  if (!url || typeof url !== "string") return url;
+  return url.replace(/^http:\/\//i, "https://");
 }
 
 // v11.8 P1：缓存 key 加入 songId 维度，避免同名不同版本冲突
@@ -805,7 +776,7 @@ async function xinghaiBackupGetUrl(platform, songId, quality, songInfo) {
   if (!source) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 星海备不支持该平台`);
   const id = songId ?? getHashOrMid(songInfo);
   if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 缺少songId`);
-  const selectedQuality = selectQuality(quality, ["128k", "320k"]);
+  const selectedQuality = String(quality || "128k").toLowerCase(); // v11.12 (D10)：链级已过滤，直接音质
   return `${XINGHAI_BACKUP_API}?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&type=url&br=${encodeURIComponent(selectedQuality)}`;
 }
 
@@ -866,7 +837,7 @@ async function huibqGetUrl(platform, songId, quality, songInfo) {
   if (!HUIBQ_API || !HUIBQ_REQUEST_KEY) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: Huibq未配置`);
   const songIdVal = songInfo?.hash ?? songInfo?.songmid ?? songId;
   if (!songIdVal) throw new Error(`${ERROR_CODES.PARAM_ERROR}: Huibq缺少ID`);
-  const selectedQuality = selectQuality(quality, ["128k", "320k"]);
+  const selectedQuality = String(quality || "128k").toLowerCase(); // v11.12 (D10)：链级已过滤，直接音质
   const url = `${HUIBQ_API}/url/${platform}/${encodeURIComponent(songIdVal)}/${encodeURIComponent(selectedQuality)}`;
   const res = await httpRequestWithRetry(url, {
     method: "GET",
@@ -884,7 +855,7 @@ async function lingchuanGetUrl(platform, songId, quality, songInfo) {
   if (!LINGCHUAN_API) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: 聆川未配置`);
   const hashOrMid = songInfo?.hash ?? songInfo?.songmid;
   if (!hashOrMid) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 聆川缺少hash/songmid`);
-  const selectedQuality = selectQuality(quality, ["320k", "128k"]);
+  const selectedQuality = String(quality || "128k").toLowerCase(); // v11.12 (D10)：链级已过滤，直接音质
   const url = `${LINGCHUAN_API}/url?source=${encodeURIComponent(platform)}&songId=${encodeURIComponent(hashOrMid)}&quality=${encodeURIComponent(selectedQuality)}`;
   const res = await httpRequestWithRetry(url, {
     method: "GET",
@@ -963,20 +934,23 @@ async function suyinKuwoGetUrl(songInfo, quality) {
   const cacheKey = buildCacheKey("kw", songInfo, quality);
   const cached = getCachedUrl(cacheKey);
   if (cached && cached.url) return cached.url;
-  const selectedQuality = selectQuality(quality, ["flac", "320k", "128k"]);
-  const br = QUALITY_TO_KUWO_BR[selectedQuality] || 1;
+  // v11.12 (D10)：链级已按 maxQuality 过滤，此处直接用请求音质，不再二次降级
+  const br = QUALITY_TO_KUWO_BR[String(quality || "128k").toLowerCase()] || 1;
   const keywords = buildSearchKeywords(songInfo);
   let lastError = null;
   for (const item of keywords) {
     try {
-      const url = await suyinKuwoSearch(item.keyword, br, item.strict ? songInfo : null);
+      // v11.12 P0-2：兜底档(strict=false)也做歌名校验+时长校验（轻量：歌手/专辑可放宽，但歌名与时长必须一致）
+      const url = await suyinKuwoSearch(item.keyword, br, item.strict ? songInfo : { name: songInfo.name, duration: songInfo.duration });
       if (url) {
         // v11.9 P0：解析出的酷我CDN链接必须Range可播，否则视为签名过期死链(410)，不缓存、不计成功，继续下一源
-        if (!await isAudioPlayable(url, 2500)) {
+        // v11.12 P0-3 (D2)：先升级 https 再校验，确保返回的 https 直链真实可播
+        const httpsUrl = upgradeToHttps(url);
+        if (!await isAudioPlayable(httpsUrl, 2500)) {
           throw new Error(`${ERROR_CODES.NOT_FOUND}: 溯音酷我签名URL已过期(CDN 410)，不可播`);
         }
-        setCachedUrl(cacheKey, url, selectedQuality);
-        return url;
+        setCachedUrl(cacheKey, httpsUrl, String(quality || "128k").toLowerCase());
+        return httpsUrl;
       }
     } catch (e) { lastError = e; }
   }
@@ -995,7 +969,8 @@ async function suyinMiguGetUrl(songInfo) {
     try {
       const res = await httpGet(SUYIN_MIGU_API, { gm: item.keyword, n: 1, num: 1, type: "json" }, 'parse');
       if (res?.code === 200 && res?.musicInfo) {
-        if (item.strict && !songInfoMatch(res, songInfo)) throw new Error(`${ERROR_CODES.MISMATCH}: 溯音咪咕歌曲信息不匹配`);
+        // v11.12 P0-2：兜底档也做歌名校验+时长校验（与溯音酷我一致，轻量：歌手/专辑可放宽）
+        if (!songInfoMatch(res, item.strict ? songInfo : { name: songInfo.name, duration: songInfo.duration })) throw new Error(`${ERROR_CODES.MISMATCH}: 溯音咪咕歌曲信息不匹配`);
         setCachedUrl(cacheKey, res.musicInfo, "128k");
         return res.musicInfo;
       }
@@ -1015,45 +990,32 @@ async function suyinGetUrl(platform, songId, quality, songInfo) {
   }
 }
 
-/* 长青SVIP（v11.9实测仅kw恢复：302→car-er.kuwo.cn新鲜mp3；wy/tx/kg/mg仍403/401/404，不可接） */
-async function changqingGetUrl(platform, songId, quality, songInfo) {
-  if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 长青今日仅kw恢复(其余平台仍403/401/404)`);
-  const id = getPlatformSongId(platform, songInfo);
-  if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 长青缺少kw rid`);
-  // 仅128k测通，固定standard级别，忽略请求音质
-  const target = CHANGQING_URL_TEMPLATES.kw.replace("{id}", encodeURIComponent(String(id))).replace("{level}", encodeURIComponent("standard"));
-  // v11.9：跟随302取car-er.kuwo.cn新鲜mp3直链（Range轻量校验，不下载全曲）
-  const res = await httpRequestWithRetry(target, {
-    method: "GET",
-    headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
-    timeout: TIMEOUT_CONFIG.parse,
-    follow_max: 5
-  });
-  const finalUrl = res.url || target;
-  if (!HTTP_URL_REGEX.test(finalUrl) || /kw\.php/.test(finalUrl)) {
-    throw new Error(`${ERROR_CODES.NOT_FOUND}: 长青kw未跟随到音频直链`);
-  }
-  return finalUrl;
+/* 长青/念心SVIP（v11.9实测仅kw恢复：302→car-er.kuwo.cn新鲜mp3；其余平台仍403/401/404；v11.12 D10模板工厂化） */
+function createTemplateVipSource(templateUrl, rejectRe, sourceName) {
+  return async function templateVipGetUrl(platform, songId, quality, songInfo) {
+    if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ${sourceName}今日仅kw恢复(其余平台仍403/401/404)`);
+    const id = getPlatformSongId(platform, songInfo);
+    if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: ${sourceName}缺少kw rid`);
+    // 仅128k测通，固定standard级别，忽略请求音质
+    const target = templateUrl.replace("{id}", encodeURIComponent(String(id))).replace("{level}", encodeURIComponent("standard"));
+    // v11.9：跟随302取car-er.kuwo.cn新鲜mp3直链（Range轻量校验，不下载全曲）
+    const res = await httpRequestWithRetry(target, {
+      method: "GET",
+      headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
+      timeout: TIMEOUT_CONFIG.parse,
+      follow_max: 5
+    });
+    const finalUrl = res.url || target;
+    if (!HTTP_URL_REGEX.test(finalUrl) || rejectRe.test(finalUrl)) {
+      throw new Error(`${ERROR_CODES.NOT_FOUND}: ${sourceName}未跟随到音频直链`);
+    }
+    // v11.12 P0-3 (D2)：http→https 升级
+    return upgradeToHttps(finalUrl);
+  };
 }
 
-/* 念心SVIP（v11.9实测仅kw恢复：302→car-er.kuwo.cn新鲜mp3；其余平台仍404，不可接） */
-async function nianxinGetUrl(platform, songId, quality, songInfo) {
-  if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 念心今日仅kw恢复(其余平台仍404)`);
-  const id = getPlatformSongId(platform, songInfo);
-  if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 念心缺少kw rid`);
-  const target = NIANXIN_URL_TEMPLATES.kw.replace("{id}", encodeURIComponent(String(id))).replace("{level}", encodeURIComponent("standard"));
-  const res = await httpRequestWithRetry(target, {
-    method: "GET",
-    headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
-    timeout: TIMEOUT_CONFIG.parse,
-    follow_max: 5
-  });
-  const finalUrl = res.url || target;
-  if (!HTTP_URL_REGEX.test(finalUrl) || /nxinxz\.com/.test(finalUrl)) {
-    throw new Error(`${ERROR_CODES.NOT_FOUND}: 念心kw未跟随到音频直链`);
-  }
-  return finalUrl;
-}
+const changqingGetUrl = createTemplateVipSource(CHANGQING_URL_TEMPLATES.kw, /kw\.php/, "长青");
+const nianxinGetUrl = createTemplateVipSource(NIANXIN_URL_TEMPLATES.kw, /nxinxz\.com/, "念心");
 
 function getPlatformSongId(platform, songInfo) {
   if (platform === "kg") return songInfo?.hash || songInfo?.songmid || songInfo?.id || songInfo?.rid || songInfo?.mid || null;
@@ -1158,7 +1120,14 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
-    recordFailure(handler.id);
+    // v11.12 (D8)：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
+    // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源
+    if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
+        e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT) {
+      recordFailure(handler.id);
+    } else {
+      recordSuccess(handler.id, Date.now() - startTime);
+    }
     throw e;
   }
 }
@@ -1244,7 +1213,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // 3. 音质降级链（请求音质首位→向下降级；链内按源能力过滤，末级必有源）
   const qualityChain = buildQualityChain(quality || (QUALITY_FIRST ? "flac" : "128k"));
   for (const q of qualityChain) {
-    const selectedQuality = selectQuality(q, PLATFORM_QUALITIES[platform]);
+    const selectedQuality = q; // v11.12 (D10)：buildQualityChain 已产出具体音质，无需再选
     const chain = sortChainByHealth(buildSourceChain(platform, selectedQuality));
     if (!chain.length) {
       errors.push(`[${q}] 无可用音源`);
@@ -1309,7 +1278,7 @@ send(EVENT_NAMES.inited, {
   sources: sourceConfig
 });
 
-logInfo(`豆包定制聚合音源 v11.11 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；溯音酷我128k恢复·kw五路兜底满编；探测歌曲池轮换(晴天/海阔天空/稻香)防风控；v11.10双音质分域探测/音质校验/音质优先均保留`);
+logInfo(`豆包定制聚合音源 v11.12 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
