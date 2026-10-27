@@ -1,9 +1,9 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v11.13日志宿主防御版：console宿主防御(D11)——移动端无console环境不再抛错(修复前加载即TypeError复现)；保留v11.12防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性+清理级
- * @version 11.13 日志宿主防御版
+ * @description v12.0星海高音质版：xinghaiBackend 解除128k限制，接入 kw 320k/flac 双源冗余(E10实测：四档code200/206可播/ID3对应)+URL https升级；保留 v11.13 console宿主防御(D11)+v11.12防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性+清理级
+ * @version 12.0 星海高音质版
  * @author 豆包定制
- * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证
+ * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)
  */
 // ============================================================
 // 第一部分：常量配置
@@ -47,7 +47,7 @@ const HUIBQ_API = "https://lxmusicapi.onrender.com";
 const HUIBQ_REQUEST_KEY = "share-v3";
 // 聆川（未配置，默认关闭）
 const LINGCHUAN_API = "https://api.lingchuan.com/v1";
-// 星海后端主域聚合（v11.8重新接入：仅 kw、仅128k；实测 code==200→真实酷我mp3；wy 签名URL本机403疑绑定后端出口IP，未接入wy）
+// 星海后端主域聚合（v11.8重新接入kw；v12.0起支持 kw 128k/320k/flac 三档，E10实测四档code200+206可播+ID3对应；wy 签名URL本机403疑绑定后端出口IP，未接入wy）
 const XINGHAI_BACKEND_API = "https://yy.zddyr.top/lx/api/";
 // 网易云官方 outer 直连（免费歌302→真实mp3；VIP/无版权歌404自动跳过；固定128k）
 const WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
@@ -85,7 +85,7 @@ const SOURCE_TOGGLES = {
   kuwoOfficial: true,   // 酷我官方直连：固定128k真实mp3(实测可用，无第三方)
   suyin163: true,       // 溯音163：免费歌真实128k直链，VIP歌url:null自动跳过
   gdWy: true,           // GD Studio：wy flac/320k高音质优先源(限5min50次，仅高音质链用)
-  xinghaiBackend: true, // 星海后端主域：kw 128k 第三重兜底(与溯音酷我/酷我官方并列)
+  xinghaiBackend: true, // 星海后端主域：kw 高音质双源(v12.0，与溯音酷我并列flac/320k) + 128k 兜底(与酷我官方并列)
   // ---- 默认关闭（接口失效/需配置，可自行开启） ----
   xinghaiBackup: false, // 星海备：域名不可解析
   suyinQQ: false,       // 溯音QQ：实测-403维护中
@@ -787,7 +787,7 @@ async function xinghaiBackupGetUrl(platform, songId, quality, songInfo) {
   return `${XINGHAI_BACKUP_API}?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&type=url&br=${encodeURIComponent(selectedQuality)}`;
 }
 
-/* 星海后端主域聚合（v11.8：仅 kw、仅128k；code==200→url；wy签名URL本机403故不支持wy） */
+/* 星海后端主域聚合（v11.8：仅 kw；v12.0：128k/320k/flac 三档，E10 实测） */
 function xinghaiBackendToken() {
   try {
     const payload = {
@@ -809,10 +809,8 @@ async function xinghaiBackendGetUrl(platform, songId, quality, songInfo) {
   if (platform !== "kw") {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 星海后端主域仅接入kw(wy签名URL本机403疑绑定后端出口IP，需家庭宽带自验后再开)`);
   }
-  // 仅128k可用；高音质请求在此直接失败，让上层降级到下一级音质/下一源
-  if (String(quality || "128k").toLowerCase() !== "128k") {
-    throw new Error(`${ERROR_CODES.NOT_FOUND}: 星海后端仅支持kw 128k，高音质跳过`);
-  }
+  // v12.0 (E10)：后端实测支持 128k/320k/flac 三档（flac24bit 亦返回 flac 同链，故 maxQuality 记为 flac），不再限制 128k
+  const selectedQuality = String(quality || "128k").toLowerCase();
   const id = songId ?? getHashOrMid(songInfo) ?? "1";
   const params = {
     source: "kw",
@@ -821,14 +819,14 @@ async function xinghaiBackendGetUrl(platform, songId, quality, songInfo) {
     songmid: id,
     interval: songInfo?.interval || songInfo?.duration || '',
     albumName: songInfo?.albumName || songInfo?.album || '',
-    quality: '128k'
+    quality: selectedQuality
   };
   const query = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
   const res = await httpRequestWithRetry(`${XINGHAI_BACKEND_API}?${query}`, {
     method: "GET",
     headers: {
       "X-Token": xinghaiBackendToken(),
-      "X-Client": "lx-aggregate/11.7",
+      "X-Client": "lx-aggregate/12.0",
       "User-Agent": "LX-Music-Mobile"
     },
     timeout: TIMEOUT_CONFIG.parse
@@ -836,7 +834,8 @@ async function xinghaiBackendGetUrl(platform, songId, quality, songInfo) {
   const body = res.body;
   if (!body || typeof body !== "object") throw new Error(`${ERROR_CODES.SERVER_ERROR}: 星海后端返回无效`);
   if (Number(body.code) !== 200 || !body.url) throw new Error(body.msg || `${ERROR_CODES.NOT_FOUND}: 星海后端无可用链接`);
-  return body.url;
+  // v12.0 (D2 模式)：实测 https 同路径 206 可播，http→https 升级，避免明文播放受限
+  return String(body.url).replace(/^http:\/\//i, "https://");
 }
 
 /* Huibq（实测仅酷我真实，其他平台假兜底，默认关闭） */
@@ -1043,7 +1042,7 @@ const SOURCE_HANDLERS = {
   kuwoOfficial: { id: "kuwoOfficial", name: "酷我官方直连", fn: kuwoOfficialGetUrl, maxQuality: "128k" },
   ikun: { id: "ikun", name: "ikun", fn: ikunGetUrl, maxQuality: "flac" },
   xinghaiBackup: { id: "xinghaiBackup", name: "星海备", fn: xinghaiBackupGetUrl, maxQuality: "128k" },
-  xinghaiBackend: { id: "xinghaiBackend", name: "星海后端", fn: xinghaiBackendGetUrl, maxQuality: "128k" },
+  xinghaiBackend: { id: "xinghaiBackend", name: "星海后端", fn: xinghaiBackendGetUrl, maxQuality: "flac" },
   huibq: { id: "huibq", name: "Huibq", fn: huibqGetUrl, maxQuality: "320k" },
   lingchuan: { id: "lingchuan", name: "聆川", fn: lingchuanGetUrl, maxQuality: "320k" },
   suyinQQ: { id: "suyinQQ", name: "溯音QQ", fn: (platform, songId, quality, songInfo) => suyinGetUrl("tx", songId, quality, songInfo), maxQuality: "flac" },
@@ -1063,7 +1062,7 @@ function buildSourceChain(platform, quality) {
   const push = (h) => { if (h && canDo(h)) chain.push(h); };
 
   if (platform === "kw") {
-    // 高音质(flac/320k)：只有溯音酷我；128k：溯音酷我 + 星海后端 + 酷我官方 + 长青 + 念心 多源竞速兜底
+    // 高音质(flac/320k)：溯音酷我 + 星海后端 双源(v12.0)；128k：溯音酷我 + 星海后端 + 酷我官方 + 长青 + 念心 多源竞速兜底
     if (t.suyinKuwo) push(SOURCE_HANDLERS.suyinKuwo);
     if (t.xinghaiBackend) push(SOURCE_HANDLERS.xinghaiBackend);
     if (t.kuwoOfficial) push(SOURCE_HANDLERS.kuwoOfficial);
@@ -1285,7 +1284,7 @@ send(EVENT_NAMES.inited, {
   sources: sourceConfig
 });
 
-logInfo(`豆包定制聚合音源 v11.13 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；日志宿主防御(D11)+防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
+logInfo(`豆包定制聚合音源 v12.0 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；星海kw高音质双源(E10实测flac/320k)+URL https升级；日志宿主防御(D11)+防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

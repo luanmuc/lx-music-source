@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/lx-music-source` · 基线文件：`lx-source.js`（当前 **v11.13 日志宿主防御版**）
+> 适用仓库：`luanmuc/lx-music-source` · 基线文件：`lx-source.js`（当前 **v12.0 星海高音质版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -84,7 +84,7 @@ on(request musicUrl)
 | kuwoOfficial | kw | 128k | ✅ 自研 | img1.kwcdn.kuwo.cn 失效 / nmobi.kuwo.cn 异常 | ⚠️ 酷我 CDN 系不稳 → 强化 D3 双源 |
 | suyin163 | wy | 128k | ✅ | oiapi.net = 可用 | ✅ |
 | gdWy | wy | flac/320k | ✅ 高音质链 | music-api.gdstudio.xyz = 可用 | ✅ |
-| xinghaiBackend | kw | 128k | ✅ | zddyr.top = 可用 | ✅（2026-10-28 实测：后端原生支持 kw 320k/flac（E10），本仓库代码仍限 128k，待 v12.0 解除） |
+| xinghaiBackend | kw | 128k/320k/flac | ✅ 三档 | zddyr.top = 可用 | ✅（v12.0 已接入：E10 实测四档 code 200/206 可播/ID3 对应；URL http→https 升级） |
 | changqingVip / nianxinVip | kw | 128k | ✅ 302 直链 | music.nxinxz.com(念心) = 可用；musicapi.haitangw.net / 175.27.166.236 / music.haitangw.cc(长青) = 异常 | ⚠️ 念心独立验证可用；长青系整体"异常"，与"长青仅 kw 可用"吻合 |
 | suyinQQ | tx | — | ❌ 关闭 | oiapi.net 可用（源 API 活着） | ⚠️ 上游活着，是接口级 -403 → 有机会恢复 |
 | suyinMigu | mg | — | ❌ 关闭 | **api.xcvts.cn = 可用** | 🔴 **关键分歧**：上游活着，本仓库 502 是 IP 封禁 → 值得测备用域名/换 IP |
@@ -103,7 +103,7 @@ on(request musicUrl)
 |---|---|---|---|
 | D1 | **匹配错歌**：`normalizeKeyword` 删括号 → 片段版与完整版归一化相同 | 播放"能播但播错歌" | ✅ v11.12 已修复（FRAGMENT_RE + 兜底档校验） |
 | D2 | **明文 http 链**：kw CDN 链为 http | 部分网络播不了高音质 | ✅ v11.12 已修复（upgradeToHttps） |
-| D3 | **kw 高音质单点**：flac/320k 仅溯音酷我一路 | kw 高音质可用性脆弱（叠加酷我 CDN 不稳，见第四节） | 待 v12.0（星海高音质路线实证候选） |
+| D3 | **kw 高音质单点**：flac/320k 仅溯音酷我一路 | kw 高音质可用性脆弱（叠加酷我 CDN 不稳，见第四节） | ✅ v12.0 已修复（星海后端接入 kw flac/320k 双源，E10 实测；断溯音后星海可独立 Range 206） |
 | D4 | durationMatch 未接入 | 时长维度错歌防线缺失 | ✅ v11.12 已接入 |
 | D5 | 健康探测开销：一轮 ~7 源 + Range，每 10 分钟 | 上行流量/风控轻度风险 | 待 v12.1（探测并入竞速） |
 | D6 | 非 strict 档校验、gdWy 无歌名校验 | 兜底源可能放错歌 | ✅ 兜底档已修；gdWy 按 id 直链保持已知限制 |
@@ -159,7 +159,7 @@ on(request musicUrl)
 
 | # | 任务 | 方案要点 | 实证依据 | 验收标准 |
 |---|---|---|---|---|
-| v12.0 | **kw 高音质双源冗余**（D3） | 扩展 `xinghaiBackend` 支持 kw flac/320k（E10 实测后端已支持，解除第 813 行"仅128k"限制即可，无需参考生态实现）；`suyinKuwo` 保持主力；坏则保持现状 | E1 + E3 + **E10** | 断掉溯音酷我后，kw flac 仍可 Range 206 播放 |
+| v12.0 | **kw 高音质双源冗余**（D3） | 扩展 `xinghaiBackend` 支持 kw flac/320k（E10 实测后端已支持，解除"仅128k"限制）；`suyinKuwo` 保持主力；URL http→https 升级（实测 https 206） | E1 + E3 + **E10** | ✅ 已实施：L0 ✓ / L1 冒烟 16 用例 ✓ / L2 真实接口 9 用例 ✓（128k=128kbps、320k=321kbps、flac=1611kbps 均 206 可播） |
 | v12.1 | 失败缓存差异化 + 探测收敛 | 410→1min / 404→1h / 网络错误→不缓存；探测结果并入竞速统计复用 | 第四节 + 原 P1-2/P1-3 | 死链不放大重试；一轮探测开销下降 |
 | v12.2 | **mg/tx 恢复评估** + 决策日志 | mg 测备用域名/换 IP（pdone 显示上游活着）；tx 跟踪上游修复；加 debug 级源级决策日志（**前置依赖：先修复 D11 console 可用性**，否则日志本身会炸） | E2 + E6 协议面 + D11 | mg 至少 128k 可用（若域名仍被全封则记录结论并保持关闭）；一次失败可定位到具体子源 |
 | v12.3 | updateAlert 发版通知 | 发版时 `send(updateAlert, {log, updateUrl})`，让用户 App 内看到更新提示 | E6 | 导入新版本后 App 弹出更新弹窗 |
@@ -235,7 +235,7 @@ on(request musicUrl)
 
 | 候选 | 用途 | 状态 | 依据 |
 |---|---|---|---|
-| 星海高音质（扩展 xinghaiBackend） | kw flac 第二来源 | ✅ 实测通过（E10），待实施 v12.0 | zddyr.top 可用 + 生态实证全平台 FLAC + 本机四档实测 code 200/206 可播/ID3 对应 |
+| 星海高音质（扩展 xinghaiBackend） | kw flac 第二来源 | ✅ 已实施 v12.0 | zddyr.top 可用 + 生态实证全平台 FLAC + 本机四档实测 code 200/206 可播/ID3 对应 |
 | api.xcvts.cn 备用域名/代理 | mg 恢复 | 待测 | pdone 实证可用，本机 IP 封禁 |
 | 溯音QQ 上游修复 | tx 恢复 | 跟踪中 | oiapi.net 可用，接口 -403 |
 | yunmge | kw 备胎 | 待测 | 旧 P1-1 候选 |
@@ -275,7 +275,7 @@ on(request musicUrl)
 | v11.11 | 接口满编版 | ✅ 已发布 |
 | v11.12 | P0 全项（防错歌）+ D8/D9/D10（防错歌加固版） | ✅ 已实施（c19b167 + Release） |
 | v11.13 | D11 日志宿主防御（console 兼容，实证驱动：修复前 vm 无 console 沙箱加载即 TypeError 复现） | ✅ 已实施（待真机抽查） |
-| v12.0 | kw 高音质双源冗余（星海高音质路线，E1/E3/E10；调研已通过） | 🟡 调研通过，待实施 |
+| v12.0 | kw 高音质双源冗余（星海高音质路线，E1/E3/E10） | ✅ 已实施（L0/L1 16 用例/L2 真实 9 用例全绿） |
 | v12.1 | 失败缓存差异化 + 探测收敛 | ⬜ 待实施 |
 | v12.2 | mg/tx 恢复评估 + 决策日志 | ⬜ 待实施 |
 | v12.3 | updateAlert 发版通知 | ⬜ 待实施 |
