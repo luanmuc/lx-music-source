@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/lx-music-source` · 基线文件：`lx-source.js`（当前 **v11.12 防错歌加固版**）
+> 适用仓库：`luanmuc/lx-music-source` · 基线文件：`lx-source.js`（当前 **v11.13 日志宿主防御版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -111,7 +111,7 @@ on(request musicUrl)
 | D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v11.12 已修复 |
 | D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v11.12 已修复 |
 | D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v11.12 已清理 |
-| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ⚠️ 待修复（需真机验证 + 日志防御，优先级 **P0 应急，先于 v12 系列**） |
+| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ✅ v11.13 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
 
@@ -273,6 +273,7 @@ on(request musicUrl)
 |---|---|---|
 | v11.11 | 接口满编版 | ✅ 已发布 |
 | v11.12 | P0 全项（防错歌）+ D8/D9/D10（防错歌加固版） | ✅ 已实施（c19b167 + Release） |
+| v11.13 | D11 日志宿主防御（console 兼容，实证驱动：修复前 vm 无 console 沙箱加载即 TypeError 复现） | ✅ 已实施（待真机抽查） |
 | v12.0 | kw 高音质双源冗余（星海高音质路线，E1/E3） | ⬜ 待实施 |
 | v12.1 | 失败缓存差异化 + 探测收敛 | ⬜ 待实施 |
 | v12.2 | mg/tx 恢复评估 + 决策日志 | ⬜ 待实施 |

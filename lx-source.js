@@ -1,9 +1,9 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v11.12防错歌加固版：片段/试听特征词拒绝(D1)+兜底档歌名校验+时长校验(D4)杜绝播错歌；kw CDN链http→https升级(D2)；断路器仅对网络类错误熔断(D8)；探测一致性加固(gdWy/溯音163补Range可播性校验+溯音163歌曲池轮换)；清理级(D10)：死代码移除/长青念心模板工厂/双降级统一；保留v11.11接口满编+五路兜底+健康自愈
- * @version 11.12 防错歌加固版
+ * @description v11.13日志宿主防御版：console宿主防御(D11)——移动端无console环境不再抛错(修复前加载即TypeError复现)；保留v11.12防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性+清理级
+ * @version 11.13 日志宿主防御版
  * @author 豆包定制
- * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)，溯音163探测歌曲池已验证(2652820720/347230)；需真机抽查后再发Release
+ * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证
  */
 // ============================================================
 // 第一部分：常量配置
@@ -306,10 +306,17 @@ const { EVENT_NAMES, request, on, send, utils, env, version } = globalThis.lx;
 // ============================================================
 // 第三部分：日志 + LRU双层缓存 + 断路器
 // ============================================================
+// v11.13 D11：console 宿主防御 — 官方移动版「可用宿主环境 API」仅 setTimeout/clearTimeout（无 console 保证）
+// 依据：lxmusic.toside.cn/mobile/custom-source 宿主 API 清单 + fork user-api-preload.js 未注入 console + vm 无 console 沙箱复现（修复前加载即抛 TypeError）
+const safeConsole = {
+  log: (typeof console !== "undefined" && typeof console.log === "function") ? console.log.bind(console) : () => {},
+  warn: (typeof console !== "undefined" && typeof console.warn === "function") ? console.warn.bind(console) : () => {},
+  error: (typeof console !== "undefined" && typeof console.error === "function") ? console.error.bind(console) : () => {},
+};
 const LOG_ENABLED = true;
-function logInfo(...args) { if (LOG_ENABLED) console.log("[聚合音源][信息]", ...args); }
-function logWarn(...args) { if (LOG_ENABLED) console.warn("[聚合音源][警告]", ...args); }
-function logError(...args) { if (LOG_ENABLED) console.error("[聚合音源][错误]", ...args); }
+function logInfo(...args) { if (LOG_ENABLED) safeConsole.log("[聚合音源][信息]", ...args); }
+function logWarn(...args) { if (LOG_ENABLED) safeConsole.warn("[聚合音源][警告]", ...args); }
+function logError(...args) { if (LOG_ENABLED) safeConsole.error("[聚合音源][错误]", ...args); }
 
 // v11.8：直接用原字符串作 Map 键（Map 支持字符串键），省掉32位哈希与碰撞覆盖
 function createLRUCache(maxSize, ttl) {
@@ -1278,7 +1285,7 @@ send(EVENT_NAMES.inited, {
   sources: sourceConfig
 });
 
-logInfo(`豆包定制聚合音源 v11.12 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
+logInfo(`豆包定制聚合音源 v11.13 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；日志宿主防御(D11)+防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
