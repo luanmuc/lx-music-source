@@ -21,7 +21,7 @@
 | ③ 日志 + LRU 双层缓存 + 断路器 | 300~387 | `successCache`(6h/500) / `failCache`(5min/300)；熔断 3 次/3min + 半开试探 + 成功率/均时统计 |
 | ④ HTTP 封装 | 389~491 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
 | ⑤ 歌曲信息与匹配工具 | 492~657 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
-| ⑥ 音源实现 | 658~1065 | 13 个子源函数：wyOuter / kuwoOfficial / ikun / gdWy / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / suyinMigu / changqing / nianxin |
+| ⑥ 音源实现 | 658~1065 | 14 个子源（注册表 SOURCE_HANDLERS 14 项）：gdWy / wyOuter / kuwoOfficial / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / suyinMigu / changqingVip / nianxinVip |
 | ⑦ 注册表 + 调度 | 1066~1277 | `SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（前三源竞速 + 6s 整体超时 + 剩余串行）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
 | ⑧ 上报 + 事件监听 | 1278~1315 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
@@ -111,6 +111,7 @@ on(request musicUrl)
 | D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v11.12 已修复 |
 | D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v11.12 已修复 |
 | D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v11.12 已清理 |
+| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ⚠️ 待修复（需真机验证 + 日志防御，优先级 **P0 应急，先于 v12 系列**） |
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
 
@@ -128,9 +129,9 @@ on(request musicUrl)
 | `lyric/pic` action | 仅 local 源 | 仅 local | 非 local 不涉及 | — |
 | `lx.request()` | `(url, {method, headers, body, form, formData, timeout}, cb) → cancel` | 同官方 + **扩展 `binary` 选项** | ✅ httpRequest 语义一致 | 合规；binary 未用到 |
 | `lx.utils` | buffer / crypto(md5, randomBytes, aesEncrypt, rsaEncrypt) / zlib | 官方移动版子集：**zlib 未实现**；buffer 仅 base64/hex/utf8；aes 仅 cbc/ecb | 仅用 md5 → 无依赖风险 | 合规 |
-| 移动版宿主 API | **仅 `setTimeout/clearTimeout`**；内置属性冻结（可扩展新属性，不可改写） | 同官方 | 未依赖浏览器/Node API | 合规 |
+| 移动版宿主 API | **仅 `setTimeout/clearTimeout`**；内置属性冻结（可扩展新属性，不可改写） | 同官方；**preload 未注入 console** | ⚠️ **代码依赖 `console.log/warn/error`（LOG_ENABLED=true，主路径调用）→ 移动端真机可能抛 ReferenceError** | **风险，见缺陷 D11** |
 | 移动版 `inited` | 无 `openDevTools` | 无 | 未传 | 合规 |
-| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持 | **未使用** | 待开发（P1-5） |
+| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | **未使用** | 待开发（v12.3，fork 行为已实证） |
 
 **合规结论**：本仓库与官方协议（移动版 v2.0.0）**完全对齐，无分叉**；fork 的扩展点（`binary`）不影响脚本侧。协议层无需返工，唯一待补的是 `updateAlert` 发版通知。
 
@@ -150,6 +151,8 @@ on(request musicUrl)
 | E5 | pdone 仓库实证：自动化健康检查 CI（probe.py 静态提取域名、连续 2 次才判失效、每日 UTC17 自动提交健康表）+ AGENTS.md 协作规范 + latest.js 版本管理 | 本仓库缺的"观测层"与"协作层"有现成模板，工程化从"远期"提级 |
 | E6 | 官方文档实证：updateAlert（源 v1.2.0）本仓库未用；qualitys 源内映射是官方模型 | 新增发版通知能力；P2-1 有官方依据 |
 | E7 | 六音源（生态最知名大源）333KB 混淆代码 | 可读性/可协作性是本仓库差异化资产，**不追求抄大源** |
+| E8 | mrkeyoor 第三方评测（2026-09-11）：pdone 的 8 个适配器"没有测试目标、是不可验证的链接架"，并警告"接口端点突然失效" | **测试+可读性=本仓库的差异化护城河**；接口突然死亡是公认风险（支撑接口生命周期管理） |
+| E9 | lxmusic.ijinshan.com 汇总站（2026-09-28 实测）：生态主流源（六音/LX官方/Flower/Huibq/JuheApi）全部收录自 pdone 仓库 | 本仓库未被收录 = 以 App 内置为主的私有定位（README 已明确）；生态对标对象就是 pdone |
 
 ### v12 系列 — 可用性（依据 E1~E4）
 
@@ -157,7 +160,7 @@ on(request musicUrl)
 |---|---|---|---|---|
 | v12.0 | **kw 高音质双源冗余**（D3） | 扩展 `xinghaiBackend` 支持 kw flac/320k（参考 xinghai 生态源的 KW 高音质实现）；`suyinKuwo` 保持主力；坏则保持现状 | E1 + E3 | 断掉溯音酷我后，kw flac 仍可 Range 206 播放 |
 | v12.1 | 失败缓存差异化 + 探测收敛 | 410→1min / 404→1h / 网络错误→不缓存；探测结果并入竞速统计复用 | 第四节 + 原 P1-2/P1-3 | 死链不放大重试；一轮探测开销下降 |
-| v12.2 | **mg/tx 恢复评估** + 决策日志 | mg 测备用域名/换 IP（pdone 显示上游活着）；tx 跟踪上游修复；加 debug 级源级决策日志 | E2 + E6 协议面 | mg 至少 128k 可用（若域名仍被全封则记录结论并保持关闭）；一次失败可定位到具体子源 |
+| v12.2 | **mg/tx 恢复评估** + 决策日志 | mg 测备用域名/换 IP（pdone 显示上游活着）；tx 跟踪上游修复；加 debug 级源级决策日志（**前置依赖：先修复 D11 console 可用性**，否则日志本身会炸） | E2 + E6 协议面 + D11 | mg 至少 128k 可用（若域名仍被全封则记录结论并保持关闭）；一次失败可定位到具体子源 |
 | v12.3 | updateAlert 发版通知 | 发版时 `send(updateAlert, {log, updateUrl})`，让用户 App 内看到更新提示 | E6 | 导入新版本后 App 弹出更新弹窗 |
 
 ### v13 系列 — 工程化与协作（依据 E5/E6/E7）
@@ -236,6 +239,7 @@ on(request musicUrl)
 | 溯音QQ 上游修复 | tx 恢复 | 跟踪中 | oiapi.net 可用，接口 -403 |
 | yunmge | kw 备胎 | 待测 | 旧 P1-1 候选 |
 | 酷我官方 CDN 稳定化 | kuwoOfficial | 监测中 | kwcdn/nmobi 异常实证 |
+| xm（汽水音乐）平台上报 | 新平台扩展 | 待确认 | fork `supportActions` 含 `xm`（但 `supportQualitys` 无 xm，fork 支持程度待验证） |
 
 ## 八、测试清单（发布前必做）
 
@@ -248,11 +252,12 @@ on(request musicUrl)
 4. **防错歌抽查**：带括号版本名（DJ/现场/Live/片段）、同名不同歌手场景；
 5. **音质降级**：断掉高音质源（临时关开关）→ 请求 flac 应逐级降到 320k/128k 且 URL 可播；
 6. **缓存行为**：同一首歌二次请求命中缓存；换音质 key 不同不串；
-7. **健康探测**：启动后首轮 ~1min 内完成，自动启用/停用行为正确。
+7. **健康探测**：启动后首轮 ~1min 内完成，自动启用/停用行为正确；
+8. **移动端真机日志验证**（D11 专项）：装包后确认无 `ReferenceError: console is not defined`；健康探测正常启动、请求路径无异常——**此条在修复 D11 前为必测项**。
 
 ## 九、发布 SOP（每次迭代必须走完）
 
-1. **改**：修改 `lx-source.js`，文件头 `@version` +1，`@description` 写明本轮变更与实测结论；协作规范见 `AGENTS.md`；
+1. **改**：修改 `lx-source.js`，文件头 `@version` +1，`@description` 写明本轮变更与实测结论；头部注释须含 `@license 仅供学习交流，请支持正版`（生态惯例，星海/六音均有；mrkeyoor 评测亦提示内容权利）；README 保留免责声明；协作规范见 `AGENTS.md`；
 2. **验**：跑完第八节测试清单；
 3. **提交**：`git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master`（**push 前先 pull --rebase**，防远端冲突；功能级改动走分支 + PR，见 AGENTS.md）；
 4. **发**：GitHub Releases 创建 `vX.Y`：标题 `聚合音源 vX.Y …`、正文 = 变更说明 + 实测结论、附件 = 当前 `lx-source.js`；
