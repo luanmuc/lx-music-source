@@ -15,6 +15,35 @@
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
 | 发布入口 | 本仓库 **Releases 页**：每次迭代出 tag + 附 `lx-source.js` 产物 |
 
+## 在线导入（自定义源）
+
+> 面向其他洛雪音乐用户：设置 → 基本设置 → 自定义源 → 自定义源管理 → 在线导入。
+
+```
+https://raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-source.js
+```
+
+加速链接（GitHub 受限时使用）：
+
+```
+https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-source.js
+```
+
+## 音源可用性（2026-10-27 核验）
+
+> 本表 = 本仓库实测（2026-10-15）+ 生态交叉验证（pdone/lx-music-source 健康巡检，2026-10-27）。
+> 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游可用但本机 IP 被封）。
+
+| 平台 | 可用音质 | 主路子源 | 交叉验证 |
+|---|---|---|---|
+| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ✅ / gdstudio.xyz ✅ |
+| 酷我 kw | 128k / 320k / flac | 溯音酷我（核心） | oiapi.net ✅；酷我官方 CDN ⚠️ 不稳 |
+| QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | 上游 oiapi.net ✅，接口 -403 待恢复 |
+| 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
+| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭（IP 封禁） | 上游 api.xcvts.cn ✅ → 备用域名路线在 v12.2 |
+
+> 详细对照表、缺陷与路线图见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
+
 ## 版本历史
 
 | 版本 | 说明 |
