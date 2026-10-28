@@ -59,7 +59,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | **v14.1** | 健康权重自学习版：健康评分 = 真实样本成功率（置信度收缩）+ 均时惩罚 + 连续失败惩罚；探测样本独立计数低权重参考，真实请求主导排序 |
 | **v14.0** | 失败原因结构化版：聚合错误携带 `code`（代表码）+ `detail` 数组（每项 `{source, quality, code, reason}`），message 文本保持兼容，供 App 端展示/统计 |
 | **v13.4** | 迭代就绪版：配置化（ikun 卡密 / 聆川密钥入 `USER_CONFIG`，开配置即用、默认关闭）；音质映射表收敛（`QUALITY_TO_X` 统一 magic number，官方"源内映射"模型）；健康探测结果并入竞速统计；决策日志开关（`LOG_DEBUG`） |
-| v13.0~13.3 | 工程化：`test/lx-source-smoke-test.js` 冒烟固化（mock lx 宿主 8 组用例）+ CI 自动 `node --check`+冒烟（push 触发）；`scripts/probe.js` 端点巡检 + 每日 CI 写回健康表；协作规范进 AGENTS.md（迭代协议）；updateAlert 发版通知 |
+| v13.0~13.3 | 工程化：`test/lx-source-smoke-test.js` 冒烟固化（mock lx 宿主 8 组用例）+ CI 自动 `node --check`+冒烟（push 触发）；`scripts/probe.js` 端点巡检 + 每日 CI 写回健康表；协作规范进 AGENTS.md（迭代协议）；updateAlert 发版通知（**v16.5.1 起停用**：每次加载/导入自动弹更新提示过于打扰，已按用户要求关闭） |
 | v12.1~12.3 | 可用性：失败缓存差异化（404→1h / 410→1min / 网络错误不缓存）+ 失败码统一提取；mg/tx 恢复评估（2026-10-28 实测 mg 上游域名 200 但接口 502=出口 IP 被咪咕限、溯音QQ 仍 -403，均保持关闭）；debug 级源级决策日志 |
 | **v12.0** | 星海高音质版：xinghaiBackend 解除 128k 限制接入 kw flac/320k（E10 实测：四档 code 200、URL 均 Range 206、魔数正确、码率吻合、ID3 歌名对应 songmid）+ URL http→https 升级（实测 https 206 可播）；kw 高音质实现双源冗余（D3 修复） |
 | v11.13 | 日志宿主防御版（D11）：`safeConsole` 兼容无 console 移动端宿主（官方移动版宿主 API 仅 setTimeout/clearTimeout）。vm 无 console 沙箱实证：修复前加载即抛 TypeError 复现，修复后加载/请求/健康探测/熔断全路径通过 |

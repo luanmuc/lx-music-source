@@ -123,10 +123,9 @@ async function test(name, fn) {
   assert.deepStrictEqual(inited.payload.sources.wy.qualitys, ['128k', '320k', 'flac'], 'wy 上报音质应裁剪为真实能力');
   assert.ok(inited.payload.status === true, 'inited status 应为 true');
 
-  console.log('[T3] updateAlert 发版通知');
+  console.log('[T3] v16.5.1 updateAlert 已停用：不再发送发版通知（用户关闭弹窗）');
   const alert = sentEvents.find(e => e.name === 'updateAlert');
-  assert.ok(alert, '未收到 updateAlert');
-  assert.ok(/github\.com\/luanmuc\/lx-music-source/.test(alert.payload.updateUrl), 'updateUrl 应为音源仓库 releases');
+  assert.ok(!alert, 'v16.5.1 不应再发送 updateAlert');
 
   console.log('[T4] musicUrl 请求链路（kw flac → 星海/溯音酷我竞速）');
   const song = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908' };
