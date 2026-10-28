@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v25.0**（当前） | Juhe源族扩充版：tx 全链路实测通（303→vkeys 中转→qqmusic 直链）；wy/kg/mg 协议已实证注册尽力型源（服务端受限时自动熔断降级）；冒烟 T26 |
+| **v25.1**（当前） | Juhe源族治理版：Juhe 上游实测整体不可用→默认关闭；协议型探测接通休眠/自动关闭/自愈复活；全链网络类失败 30s 短缓存防反复卡 18s；冒烟 T26 |
+| v25.0 | Juhe源族扩充版：tx 全链路实测通（303→vkeys 中转→qqmusic 直链）；wy/kg/mg 协议已实证注册尽力型源（服务端受限时自动熔断降级）；冒烟 T26 |
 | **v24.0**（当前） | 音质协商版：flac→320k→128k 有序降档链（v11.12/v13.x 已有），本轮补降档日志+快照 lastQuality（实际交付音质可诊断）；冒烟 T25 |
 | **v23.1**（当前） | 自检门版：scripts/self-check.js 发布前自检（版本串同步/actions 声明/README 与 ROADMAP 同步），接入 CI L2 门任一失败阻断发布 |
 | **v22.0**（当前） | 配置化版：USER_CONFIG 全量参数化——成功缓存TTL/失败缓存差异化TTL/熔断阈值与冷却/429退避/并发上限/限速窗口/探测间隔/竞速超时共12项可配置（缺省行为与历史一致）；冒烟 T24 |

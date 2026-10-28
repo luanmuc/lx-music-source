@@ -113,6 +113,9 @@ async function test(name, fn) {
 (async () => {
   console.log('[T1] 加载防御');
   setMockLx(); mockRoute = buildRoutes('success');
+  // v25.1：测试豁免生产限速（3s窗口5次/源）——测试密集请求非真实用户节奏；
+  // T8 起用多首歌验证熔断会密集触网，放宽窗口上限模拟真实节奏（限速在真实 App 生效）
+  globalThis.__lxSourceConfig = { rateWindowMax: 100000, maxConcurrency: 100000, rateWindowMs: 3600000 };
   const loadErr = loadSource(true); // 无 console 加载
   assert.strictEqual(loadErr, null, `无console加载抛错: ${loadErr && loadErr.message}`);
 
@@ -154,26 +157,33 @@ async function test(name, fn) {
   const after = Object.values(counts).reduce((s, v) => s + v, 0);
   assert.strictEqual(after, before, `404失败缓存(1h)后不应重试，实际+${after - before}`);
 
-  console.log('[T7] 失败缓存差异化：网络错误 → 不缓存（立即重试）');
+  console.log('[T7] 失败缓存差异化（v25.1）：网络错误全链失败 → 30s 短缓存（短时间不重试）');
   resetMock();
   mockRoute = buildRoutes('netfail');
   const netFailSong = { name: '网络错误测试歌', singer: '未知', duration: 180000, songmid: 'netfail-song-1' };
   try { await requestUrl('kw', 'flac', netFailSong); } catch (e) { /* 预期失败 */ }
   const before2 = Object.values(counts).reduce((s, v) => s + v, 0);
-  try { await requestUrl('kw', 'flac', netFailSong); } catch (e) { /* 预期再次失败 */ }
+  try { await requestUrl('kw', 'flac', netFailSong); } catch (e) { /* 预期命中30s短缓存，同样失败 */ }
   const after2 = Object.values(counts).reduce((s, v) => s + v, 0);
-  assert.ok(after2 > before2, `网络错误不应缓存，重复请求应重新外呼（${before2}→${after2}）`);
+  assert.strictEqual(after2, before2, `网络错误全链失败应命中30s短缓存不重试（${before2}→${after2}）；30s后自动过期恢复重试`);
 
   console.log('[T8] 熔断分类：业务失败(NOT_FOUND)不熔断、网络错误累计3次熔断');
   // 8a 网络错误 x3 → 熔断（后续请求报"已熔断"，不进入源）
   resetMock();
   mockRoute = buildRoutes('netfail');
+  // v25.1(A3)：网络类全链失败写30s短缓存，同一歌连续请求会命中缓存不累计熔断；
+  // 熔断按源计数与歌无关——用3首不同歌各打一次，保证3次真实外呼累计 → 熔断
   const breakerSong = { name: '熔断测试歌', singer: '未知', duration: 180000, songmid: 'breaker-song-1' };
-  for (let i = 0; i < 3; i++) { try { await requestUrl('kw', 'flac', breakerSong); } catch (e) { /* 累积 */ } }
-  // 熔断后：3 个源并发都熔断则整体抛"已熔断"；切回成功模式，仍可能因断路器挡路
+  for (let i = 0; i < 3; i++) {
+    const breakerSongN = { name: '熔断测试歌', singer: '未知', duration: 180000, songmid: `breaker-song-${i + 1}` };
+    try { await requestUrl('kw', 'flac', breakerSongN); } catch (e) { /* 累积 */ }
+  }
+  // 熔断后：3 个源并发都熔断则整体抛"已熔断"；切回成功模式，仍可能因断路器挡路。
+  // 用一首新歌验证熔断拦截——同一首歌会命中 v25.1 的30s短缓存(不重试)，无法走到熔断检查
   mockRoute = buildRoutes('success');
+  const breakerCheckSong = { name: '熔断检测歌', singer: '未知', duration: 180000, songmid: 'breaker-check-song' };
   let breakerHit = false;
-  try { await requestUrl('kw', 'flac', breakerSong); } catch (e) { if (/熔断/.test(e.message)) breakerHit = true; }
+  try { await requestUrl('kw', 'flac', breakerCheckSong); } catch (e) { if (/熔断/.test(e.message)) breakerHit = true; }
   // 说明：kw flac 链 = suyinKuwo+xinghaiBackend（均熔断），应命中"已熔断"
   assert.ok(breakerHit, '网络错误3次后应熔断，实际未命中熔断错误');
 
@@ -509,6 +519,8 @@ async function test(name, fn) {
 
   console.log('[T26] v18.1 Juhe源族扩充：tx 303→vkeys→直链全链路，wy/kg/mg 四源注册');
   resetMock();
+  // v25.1(A1)：Juhe 默认关闭（上游实测不可用）——本用例手动开启 juheTx 验证协议链路
+  await requestHandler({ action: 'toggle', source: 'tx', info: { id: 'juheTx', enabled: true } });
   const juheRoute26 = (u) => {
     if (u.includes('api.music.lerd.dpdns.org/tx')) {
       return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({
