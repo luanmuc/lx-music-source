@@ -60,3 +60,18 @@
 {"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":2800,"reason":"OK"}
 {"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":2077,"reason":"ENOTFOUND"}
 {"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":2609,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":false,"status":403,"time":71,"reason":"HTTP 403"}
+{"date":"2026-10-28","url":"https://music-dl.sayqz.com/api/","ok":false,"status":0,"time":50,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":403,"time":1652,"reason":"HTTP 403"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":1016,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":1206,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":200,"time":1641,"reason":"OK"}
+{"date":"2026-10-28","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":699,"reason":"HTTP 503"}
+{"date":"2026-10-28","url":"https://api.music.lerd.dpdns.org","ok":false,"status":429,"time":841,"reason":"HTTP 429"}
+{"date":"2026-10-28","url":"https://api.lingchuan.com/v1","ok":false,"status":0,"time":966,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":1524,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":1728,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":1725,"reason":"OK"}
+{"date":"2026-10-28","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":1784,"reason":"OK"}
+{"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":1803,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":1421,"reason":"ENOTFOUND"}
