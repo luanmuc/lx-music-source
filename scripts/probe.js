@@ -67,6 +67,20 @@ function aggregateHistory() {
   return stats;
 }
 
+// v16.1：死源建议阈值——连续失败天数 ≥ 该值即建议关闭（写回健康表留档，供迭代时摘除）
+const DEAD_STREAK_THRESHOLD = 3;
+function collectDeadSources(hist, results) {
+  const dead = [];
+  const urlByResult = new Map(results.map(r => [r.url, r]));
+  for (const [url, h] of Object.entries(hist)) {
+    if (h.streak >= DEAD_STREAK_THRESHOLD) {
+      const cur = urlByResult.get(url);
+      dead.push({ url, streak: h.streak, rate: h.rate, currentOk: cur ? cur.ok : false, reason: cur ? cur.reason : '历史连续失败' });
+    }
+  }
+  return dead.sort((a, b) => b.streak - a.streak);
+}
+
 // ---- 静态提取端点（与 lx-source.js 常量区一致的正则）----
 function extractEndpoints(src) {
   const urls = new Set();
@@ -78,7 +92,7 @@ function extractEndpoints(src) {
     urls.add(u);
   }
   // 过滤明显非 API 的示例/文档 URL
-  return [...urls].filter(u => /api|music|search|antiserver|outer|\.js$|\.php|/i.test(u));
+  return [...urls].filter(u => /api|music|search|antiserver|outer|\.js$|\.php|/i.test(u) && !u.includes('${'));
 }
 
 // ---- 单端点探测（GET + Range 0-1023，2s 超时）----
@@ -119,6 +133,7 @@ function probeUrl(url, timeoutMs = 4000) {
   // v16.0：追加本次结果到历史 + 近7日成功率列
   const today = appendHistory(results);
   const hist = aggregateHistory();
+  const dead = collectDeadSources(hist, results);
   const lines = [];
   lines.push('# 端点健康表（自动巡检）');
   lines.push('');
@@ -134,6 +149,15 @@ function probeUrl(url, timeoutMs = 4000) {
     const h = hist[r.url];
     const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
     lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);
+  }
+  // v16.1：死源建议——连续 DEAD_STREAK_THRESHOLD 天以上失败的端点，建议关闭留档
+  if (dead.length) {
+    lines.push('');
+    lines.push(`## ⚠️ 死源建议（连续 ${DEAD_STREAK_THRESHOLD} 天以上失败，供迭代时摘除/留档）`);
+    lines.push('');
+    for (const d of dead) {
+      lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
+    }
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
   console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);

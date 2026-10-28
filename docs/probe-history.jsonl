@@ -14,3 +14,34 @@
 {"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":347,"reason":"ENOTFOUND"}
 {"date":"2026-10-28","url":"https://img2.kuwo.cn/${item.MVPIC}","ok":true,"status":404,"time":409,"reason":"OK"}
 {"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":1063,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":false,"status":0,"time":524,"reason":"ETIMEDOUT"}
+{"date":"2026-10-28","url":"https://music-dl.sayqz.com/api/","ok":false,"status":0,"time":11,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/QQ_Music","ok":true,"status":403,"time":100,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":156,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":151,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":200,"time":126,"reason":"OK"}
+{"date":"2026-10-28","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":810,"reason":"HTTP 503"}
+{"date":"2026-10-28","url":"https://api.lingchuan.com/v1","ok":false,"status":0,"time":16,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://yy.zddyr.top/lx/api/","ok":false,"status":0,"time":4020,"reason":"TIMEOUT"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":97,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":160,"reason":"OK"}
+{"date":"2026-10-28","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":58,"reason":"OK"}
+{"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":65,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":25,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://img2.kuwo.cn/${item.MVPIC}","ok":true,"status":404,"time":380,"reason":"OK"}
+{"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":778,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":false,"status":0,"time":677,"reason":"ETIMEDOUT"}
+{"date":"2026-10-28","url":"https://music-dl.sayqz.com/api/","ok":false,"status":0,"time":10,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/QQ_Music","ok":true,"status":403,"time":104,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":142,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":146,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":200,"time":132,"reason":"OK"}
+{"date":"2026-10-28","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":858,"reason":"HTTP 503"}
+{"date":"2026-10-28","url":"https://api.lingchuan.com/v1","ok":false,"status":0,"time":26,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://yy.zddyr.top/lx/api/","ok":false,"status":0,"time":4029,"reason":"TIMEOUT"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":159,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":156,"reason":"OK"}
+{"date":"2026-10-28","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":71,"reason":"OK"}
+{"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":82,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":48,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":306,"reason":"OK"}
