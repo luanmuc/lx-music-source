@@ -443,7 +443,17 @@ async function test(name, fn) {
   assert.ok(snapV20.juheKw, '快照应含 juheKw 新源族');
   assert.ok(snapV20.juheKw.maxQuality === 'flac', 'juheKw 应支持 flac 音质');
 
-  console.log('\n冒烟测试完成：20 组用例');
+  console.log('[T21] v19.0 健康分排序源链：verified 源附加优先，串行兜底按健康分降序');
+  const fakeChain = [
+    { id: 'v19fakeA', name: 'A', verified: false, maxQuality: 'flac' },
+    { id: 'v19fakeB', name: 'B', verified: true, maxQuality: 'flac' },
+    { id: 'v19fakeC', name: 'C', verified: false, maxQuality: 'flac' }
+  ];
+  const sortedChain = mod.sortChainByHealth(fakeChain);
+  assert.ok(sortedChain[0].id === 'v19fakeB', `verified 源应优先，实际 ${sortedChain[0].id}`);
+  assert.ok(sortedChain.length === 3, '链长度不变');
+
+  console.log('\n冒烟测试完成：21 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
