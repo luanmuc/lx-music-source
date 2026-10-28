@@ -459,7 +459,20 @@ async function test(name, fn) {
   assert.ok(uas.size >= 2, `UA 池应轮换出至少2种，实际 ${uas.size} 种`);
   for (const ua of uas) assert.ok(/Mozilla\/5\.0/.test(ua), `UA 应合法: ${ua.slice(0, 30)}`);
 
-  console.log('\n冒烟测试完成：22 组用例');
+  console.log('[T23] v19.2 探测歌曲池扩充：12首轮换（防单曲被风控识别）');
+  const probeSongs = new Set();
+  for (let i = 0; i < 12; i++) {
+    globalThis.__probeRound = i;
+    const cfg = mod.buildProbeConfig();
+    const kwProbe = (cfg.suyinKuwo?.probes || [])[0];
+    if (kwProbe && kwProbe.url) {
+      const m = kwProbe.url.match(/msg=([^&]+)/);
+      if (m) probeSongs.add(decodeURIComponent(m[1]));
+    }
+  }
+  assert.ok(probeSongs.size >= 10, `探测歌曲池应≥10首，实际 ${probeSongs.size} 首`);
+
+  console.log('\n冒烟测试完成：23 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
