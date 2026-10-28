@@ -309,7 +309,7 @@ async function test(name, fn) {
   try { await requestHandler({ action: 'lyric', source: 'tx', info: { type: 'flac', musicInfo: wySong } }); } catch (e) { txRejected = true; }
   assert.ok(txRejected, 'tx 歌词无接口应 reject（App 走内置源兜底）');
 
-  console.log('[T14] v15.2 健康统计快照：14 源全量 + 字段完整 + 健康分排序可用');
+  console.log('[T14] v15.2 健康统计快照：全源全量 + 字段完整 + 健康分排序可用');
   const snap = mod.getHealthSnapshot();
   assert.ok(snap && typeof snap === 'object', '应返回快照对象');
   assert.ok(Object.keys(snap).length >= 14, `应覆盖全部源，实际${Object.keys(snap).length}个`);
@@ -369,9 +369,10 @@ async function test(name, fn) {
   // 成功率分母剔除版权失败：全版权失败时该源 successRate 应为 null（无有效样本）
   const firstId = Object.keys(snapV17)[0];
   assert.ok(snapV17[firstId].successRate === null || snapV17[firstId].successRate <= 1, `successRate 应剔除版权失败分母，实际 ${snapV17[firstId].successRate}`);
-  // 熔断未被触发（业务失败不熔断）
+  // 熔断未被触发（业务失败不熔断）——只检查本次收到版权失败请求的源
+  // （网络故障熔断的其他源由 T8 覆盖，不在此断言范围）
   let tripped = false;
-  for (const [id, s] of Object.entries(snapV17)) { if (s.state === 'open') tripped = true; }
+  for (const [id, s] of Object.entries(snapV17)) { if ((s.copyrightFail || 0) > 0 && s.state === 'open') { tripped = true; console.log('[debug] 版权失败却熔断的源:', id); } }
   assert.ok(!tripped, '版权失败不应触发熔断');
 
   console.log('[T18] v17.1 按音质分档：成功/失败后快照含 byQuality，各档 rate 独立');
@@ -401,7 +402,8 @@ async function test(name, fn) {
   const snapV19a = mod.getHealthSnapshot();
   let trippedV19 = 0, limitCountA = 0;
   for (const s of Object.values(snapV19a)) {
-    if (s.state === 'open') trippedV19++;
+    // 只检查本次收到 429 的源（此前网络故障熔断的源由 T8 覆盖）
+    if ((s.rateLimitCount || 0) > 0 && s.state === 'open') trippedV19++;
     limitCountA += s.rateLimitCount || 0;
   }
   assert.ok(limitCountA >= 1, `429 应被记录为限流计数，实际 ${limitCountA}`);
@@ -413,7 +415,35 @@ async function test(name, fn) {
   for (const s of Object.values(snapV19b)) limitCountB += s.rateLimitCount || 0;
   assert.ok(limitCountB === limitCountA, `退避期内应跳过(计数不增长)：${limitCountA} → ${limitCountB}`);
 
-  console.log('\n冒烟测试完成：19 组用例');
+  console.log('[T20] v18.0 Juhe源族：kw 303重定向协议→直链，独立新源族注册');
+  resetMock();
+  // 解锁 juheKw（此前 T8 网络故障熔断遗留）——toggle 开启应重置熔断
+  const unlockRes = await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'juheKw', enabled: true } });
+  assert.ok(unlockRes && unlockRes.id === 'juheKw', 'toggle 解锁 juheKw 应成功');
+  const juheRoute = (u) => {
+    if (u.includes('api.music.lerd.dpdns.org/kw')) {
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        code: 303,
+        data: {
+          request: { url: 'http://mobi.kuwo.cn/mobi.s?type=convert_url_with_sign&rid=2289089', options: { method: 'GET', headers: { 'User-Agent': 'okhttp' } } },
+          response: { check: { key: ['body', 'code'], value: 200 }, url: ['body', 'data', 'url'] }
+        }
+      }) };
+    }
+    if (u.includes('mobi.kuwo.cn')) {
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/juhe-kw.flac' } }) };
+    }
+    // 竞速隔离：仅 Juhe 链路可用，验证 juheKw 自身能力
+    return { error: 'ECONNREFUSED' };
+  };
+  mockRoute = juheRoute;
+  const juheUrl = await requestUrl('kw', 'flac', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '2289089' });
+  assert.ok(typeof juheUrl === 'string' && juheUrl.includes('example.com/juhe-kw.flac'), `Juhe kw 应经303校验返回直链，实际 ${juheUrl}`);
+  const snapV20 = mod.getHealthSnapshot();
+  assert.ok(snapV20.juheKw, '快照应含 juheKw 新源族');
+  assert.ok(snapV20.juheKw.maxQuality === 'flac', 'juheKw 应支持 flac 音质');
+
+  console.log('\n冒烟测试完成：20 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
