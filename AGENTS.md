@@ -17,6 +17,15 @@ AGENTS.md           # 本文件：协作规范
 versions/           # （规划中）带版本号归档，防误删回滚
 ```
 
+## 迭代触发协议（任一账号说「迭代」即按此执行）
+
+1. 读 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md)：找到第一个状态 `[ ]` 且依赖已满足的版本 = 本次迭代目标；
+2. 按「实证开发流程」实现（实证 → 改码 → L0~L4 验证链）；
+3. 通过后：改 `lx-source.js` 头部 `@version`/`@description`、README 版本历史、并把该版本 `[ ]` → `[x]`；
+4. 走 DEV_GUIDE 发布 SOP 出 tag + Release（附 `lx-source.js` 产物）；
+5. 一次迭代 = 一个版本 = 一个提交；用户说"迭代到 X"则连续执行，每版单独提交；
+6. 标注「外部依赖」的版本（v14+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现。
+
 ## 命令
 
 ```bash

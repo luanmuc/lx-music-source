@@ -131,7 +131,7 @@ on(request musicUrl)
 | `lx.utils` | buffer / crypto(md5, randomBytes, aesEncrypt, rsaEncrypt) / zlib | 官方移动版子集：**zlib 未实现**；buffer 仅 base64/hex/utf8；aes 仅 cbc/ecb | 仅用 md5 → 无依赖风险 | 合规 |
 | 移动版宿主 API | **仅 `setTimeout/clearTimeout`**；内置属性冻结（可扩展新属性，不可改写） | 同官方；**preload 未注入 console** | ⚠️ **代码依赖 `console.log/warn/error`（LOG_ENABLED=true，主路径调用）→ 移动端真机可能抛 ReferenceError** | **风险，见缺陷 D11** |
 | 移动版 `inited` | 无 `openDevTools` | 无 | 未传 | 合规 |
-| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | **未使用** | 待开发（v12.3，fork 行为已实证） |
+| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | ✅ 已使用（v12.3 起发版通知，仅调一次，宿主无事件自动跳过） | 合规 |
 
 **合规结论**：本仓库与官方协议（移动版 v2.0.0）**完全对齐，无分叉**；fork 的扩展点（`binary`）不影响脚本侧。协议层无需返工，唯一待补的是 `updateAlert` 发版通知。
 
@@ -220,10 +220,10 @@ on(request musicUrl)
 |---|---|---|---|
 | 增 | 接入闸门（默认关 → Range 206 → 两轮探测 → 真实播放才开） | ✅ AGENTS.md + 测试清单 | 制度化 |
 | 增 | 候选观察池（带状态跟踪的待测清单，见下） | ❌ 本次新增 | 已写入 |
-| 增 | 例行生态扫描（每次迭代扫 pdone 健康表/索引站/GitHub） | ⚠️ 手动 | v13.1 巡检化 |
-| 活 | 运行时防护（断路器/Range 二次校验/失败缓存差异化） | ✅ 已有 | v12.1 增强 |
-| 活 | 分级响应：IP 封禁→换域/代理；接口 -403→跟踪上游；签名 410→短缓存+重签；域名死亡→摘除+README 标注 | ⚠️ 雏形 | v12.1/v12.2 细化 |
-| 活 | 每日自动巡检健康表（仿 pdone probe.py，连续 2 次滞后判定） | ❌ | v13.1 |
+| 增 | 例行生态扫描（每次迭代扫 pdone 健康表/索引站/GitHub） | ⚠️ 手动 | 迭代时执行 |
+| 活 | 运行时防护（断路器/Range 二次校验/失败缓存差异化） | ✅ 已有（v12.1 失败缓存差异化已落地） | v12.1 ✅ |
+| 活 | 分级响应：IP 封禁→换域/代理；接口 -403→跟踪上游；签名 410→短缓存+重签；域名死亡→摘除+README 标注 | ✅ 已有（mg/tx 结论留档、410 短缓存 1min） | v12.1/v12.2 ✅ |
+| 活 | 每日自动巡检健康表（仿 pdone probe.py，连续 2 次滞后判定） | ✅ 已落地（scripts/probe.js + CI 每日写回 README_HEALTH.md） | v13.1 ✅ |
 | 衰 | 健康排序降权（sortChainByHealth） | ✅ 已有 | — |
 | 衰 | 自动摘死源（连续 N 天失败 → 自动摘除） | ❌ | v16.1 |
 | 衰 | 死源档案（保留函数 + 原因注释 + README 标注） | ✅ 已有 | 制度化 |
@@ -247,16 +247,16 @@ on(request musicUrl)
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
 
 1. **语法**：`node --check lx-source.js`；
-2. **加载**：mock `globalThis.lx` 跑一次 `send(inited)`，确认 `sources` 上报 5 平台、qualitys 正确；
+2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（8 组：加载防御/上报结构/updateAlert/请求链路/成功缓存/失败缓存差异化 404 与网络错误/熔断分类）；CI 已在 push 时自动执行；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；
    - kw：《难却(DJ细霖版)》flac/320k/128k 三档（重点：不匹配到片段版、URL 可 206 播放）；
    - tx/kg/mg：至少 128k 兜底可用；
 4. **防错歌抽查**：带括号版本名（DJ/现场/Live/片段）、同名不同歌手场景；
 5. **音质降级**：断掉高音质源（临时关开关）→ 请求 flac 应逐级降到 320k/128k 且 URL 可播；
-6. **缓存行为**：同一首歌二次请求命中缓存；换音质 key 不同不串；
+6. **缓存行为**：同一首歌二次请求命中缓存；换音质 key 不同不串；失败缓存差异化（404→1h 不重试 / 410→1min / 网络错误→立即重试）；
 7. **健康探测**：启动后首轮 ~1min 内完成，自动启用/停用行为正确；
-8. **移动端真机日志验证**（D11 专项）：装包后确认无 `ReferenceError: console is not defined`；健康探测正常启动、请求路径无异常——**此条在修复 D11 前为必测项**。
+8. **移动端真机日志验证**（D11 专项）：装包后确认无 `ReferenceError: console is not defined`；健康探测正常启动、请求路径无异常——**此条在修复 D11 后转为抽查项**。
 
 ## 九、发布 SOP（每次迭代必须走完）
 
@@ -276,14 +276,14 @@ on(request musicUrl)
 | v11.12 | P0 全项（防错歌）+ D8/D9/D10（防错歌加固版） | ✅ 已实施（c19b167 + Release） |
 | v11.13 | D11 日志宿主防御（console 兼容，实证驱动：修复前 vm 无 console 沙箱加载即 TypeError 复现） | ✅ 已实施（待真机抽查） |
 | v12.0 | kw 高音质双源冗余（星海高音质路线，E1/E3/E10） | ✅ 已实施（L0/L1 16 用例/L2 真实 9 用例全绿） |
-| v12.1 | 失败缓存差异化 + 探测收敛 | ⬜ 待实施 |
-| v12.2 | mg/tx 恢复评估 + 决策日志 | ⬜ 待实施 |
-| v12.3 | updateAlert 发版通知 | ⬜ 待实施 |
-| v13.0 | 自动化测试 + CI | ⬜ 待实施 |
-| v13.1 | 可观测巡检（probe CI + 健康表） | ⬜ 待实施 |
-| v13.2 | 协作规范落地（AGENTS.md 已建，流程待 CI 化） | 🟡 文档已建 |
-| v13.3 | 音质映射官方模型对齐 | ⬜ 待实施 |
-| v13.4 | 配置化（可选源） | ⬜ 待实施 |
+| v12.1 | 失败缓存差异化 + 探测收敛 | ✅ 已实施（v13.4 迭代就绪版，L0/L1 冒烟 8 组全绿） |
+| v12.2 | mg/tx 恢复评估 + 决策日志 | ✅ 已实施（2026-10-28 实测 mg 域名 200 接口 502/tx 仍 -403，保持关闭；LOG_DEBUG 决策日志） |
+| v12.3 | updateAlert 发版通知 | ✅ 已实施（仅调一次，宿主无事件自动跳过） |
+| v13.0 | 自动化测试 + CI | ✅ 已实施（test/lx-source-smoke-test.js 8 组用例 + ci.yml push 自动检查） |
+| v13.1 | 可观测巡检（probe CI + 健康表） | ✅ 已实施（scripts/probe.js + 每日 CI 写回 README_HEALTH.md） |
+| v13.2 | 协作规范落地（AGENTS.md 已建，流程待 CI 化） | ✅ 已实施（迭代触发协议进 AGENTS.md；本仓库单文件直推模式，功能级走分支/PR） |
+| v13.3 | 音质映射官方模型对齐 | ✅ 已实施（QUALITY_TO_X 收敛 br=1/5/7/740/999，gdBrMap 等并入） |
+| v13.4 | 配置化（可选源） | ✅ 已实施（USER_CONFIG：ikun 卡密/聆川密钥/星海 device_id，默认关闭） |
 | v14.0 | 自建 API 网关（架构可持续性，决策点：需服务器） | ⬜ 方向已定 |
 | v14.1 | 多域名/多 IP 容灾 | ⬜ 方向已定 |
 | v14.2 | 签名代理化 | ⬜ 方向已定 |

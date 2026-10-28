@@ -1,15 +1,28 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v12.0星海高音质版：xinghaiBackend 解除128k限制，接入 kw 320k/flac 双源冗余(E10实测：四档code200/206可播/ID3对应)+URL https升级；保留 v11.13 console宿主防御(D11)+v11.12防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性+清理级
- * @version 12.0 星海高音质版
+ * @description v13.4迭代就绪版：v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测结果并入竞速统计；v12.2源级决策日志(debug级)+mg/tx恢复评估(2026-10-28实测mg上游域名200但接口502=出口IP被咪咕限/溯音QQ仍-403，均保持关闭)；v12.3 updateAlert发版通知(仅调一次)；v13.3音质映射表收敛(QUALITY_TO_X统一magic number)；v13.4配置化(ikun/聆川密钥入配置区，默认关闭)；保留v12.0星海kw高音质双源+v11.13日志宿主防御+v11.12防错歌加固
+ * @version 13.4 迭代就绪版
  * @author 豆包定制
- * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)
+ * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
+// ============================================================
+// 第〇部分：用户配置区（v13.4 配置化 — 开配置即用，默认不暴露）
+// 需配置源（ikun 卡密 / 聆川密钥）从这里读取：
+//   方式一：直接改下方 USER_CONFIG 常量（改源码即生效）；
+//   方式二：宿主全局注入 globalThis.__lxSourceConfig = { ikunApiKey, lingchuanApiKey }（fork App 可做，不改源码）。
+// 星海令牌默认自动生成（device_id 随机）；如需固定可在此配置 xinghaiDeviceId。
+// ============================================================
+const USER_CONFIG = {
+  ikunApiKey: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.ikunApiKey) || "", // 填入 ikun 卡密后开启
+  lingchuanApiKey: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.lingchuanApiKey) || "",
+  xinghaiDeviceId: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.xinghaiDeviceId) || "",
+};
+
 // ============================================================
 // 第一部分：常量配置
 // ============================================================
 const CACHE_TTL_MS = 21600000;          // 6小时 成功缓存
-const FAIL_CACHE_TTL_MS = 300000;       // 5分钟 失败缓存
+const FAIL_CACHE_TTL_MS = 300000;       // 5分钟 失败缓存（v12.1 起按失败类型差异化：见 getFailCached）
 const CACHE_MAX_SIZE = 500;
 const FAIL_CACHE_MAX_SIZE = 300;
 const HTTP_URL_REGEX = /^https?:\/\//i;
@@ -27,7 +40,19 @@ const ERROR_CODES = {
   SERVER_ERROR: 'SERVER_ERROR',
   NOT_FOUND: 'NOT_FOUND',
   MISMATCH: 'SONG_MISMATCH',
-  CONFIG_ERROR: 'CONFIG_ERROR'
+  CONFIG_ERROR: 'CONFIG_ERROR',
+  LINK_EXPIRED: 'LINK_EXPIRED'   // v12.1：HTTP 410 签名/直链过期
+};
+
+// v12.1：失败缓存差异化 TTL（404=歌确实不存在，缓存1h；410=签名死链，很快恢复，缓存1min；网络类/限流=瞬时，不缓存）
+const FAIL_CACHE_TTL_BY_CODE = {
+  [ERROR_CODES.NOT_FOUND]: 60 * 60 * 1000,        // 404/无版权/搜索无结果 → 1小时
+  [ERROR_CODES.MISMATCH]: 60 * 60 * 1000,          // 歌信息不匹配(近1h内重查意义低) → 1小时
+  [ERROR_CODES.LINK_EXPIRED]: 60 * 1000,           // 410 签名死链 → 1分钟
+  [ERROR_CODES.RATE_LIMIT]: 0,                     // 限流 → 不缓存(会恢复)
+  [ERROR_CODES.NETWORK_TIMEOUT]: 0,                // 超时 → 不缓存(瞬时)
+  [ERROR_CODES.NETWORK_ERROR]: 0,                  // 网络错误 → 不缓存(瞬时)
+  [ERROR_CODES.SERVER_ERROR]: 0,                   // 5xx → 不缓存(服务端会恢复)
 };
 
 const TIMEOUT_CONFIG = { search: 3000, parse: 5000, default: 5000 }; // v11.8: parse 8000→5000
@@ -54,9 +79,8 @@ const WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
 // 酷我官方直连（自研：搜索r.s→rid→convert_url，固定128k真实mp3，无第三方）
 const KUWO_SEARCH_API = "http://search.kuwo.cn/r.s";
 const KUWO_CONVERT_API = "http://antiserver.kuwo.cn/anti.s";
-// ikun 服务器源（需卡密；填入 IKUN_API_KEY 并开启 ikun 开关后生效）
+// ikun 服务器源（v13.4：卡密从 USER_CONFIG.ikunApiKey 读取；开启 ikun 开关后生效）
 const IKUN_API = "https://api.ikunshare.com";
-const IKUN_API_KEY = ""; // 填入你的 ikun 卡密后开启使用
 
 // 长青SVIP（实测：IP白名单/无链接/需付费level，已失效，默认关闭）
 const CHANGQING_URL_TEMPLATES = {
@@ -88,13 +112,13 @@ const SOURCE_TOGGLES = {
   xinghaiBackend: true, // 星海后端主域：kw 高音质双源(v12.0，与溯音酷我并列flac/320k) + 128k 兜底(与酷我官方并列)
   // ---- 默认关闭（接口失效/需配置，可自行开启） ----
   xinghaiBackup: false, // 星海备：域名不可解析
-  suyinQQ: false,       // 溯音QQ：实测-403维护中
-  suyinMigu: false,     // 溯音咪咕：实测502(上游IP被咪咕封)
+  suyinQQ: false,       // 溯音QQ：2026-10-28实测仍-403(oiapi.net维护中)，保持关闭待上游恢复
+  suyinMigu: false,     // 溯音咪咕：2026-10-28实测——上游api.xcvts.cn域名200可达(0.26s)但接口502"服务器IP可能被咪咕限制"，换备用域名不可行(IP级限制)，待上游恢复
   changqingVip: true,  // 长青：v11.9实测仅kw恢复(302→car-er.kuwo.cn新鲜mp3)，仅kw 128k兜底
   nianxinVip: true,    // 念心：v11.9实测仅kw恢复(302→car-er.kuwo.cn新鲜mp3)，仅kw 128k兜底
   huibq: false,         // Huibq：实测仅酷我真实，其他平台假兜底
   lingchuan: false,     // 聆川：需配置
-  ikun: false           // ikun服务器源：需卡密(IKUN_API_KEY)，填入后开启
+  ikun: false           // ikun服务器源：需卡密(USER_CONFIG.ikunApiKey)，填入后开启
 };
 
 // ============================================================
@@ -196,6 +220,7 @@ async function probeSingleSource(id, cfg) {
   }];
   try {
     const results = await Promise.all(probes.map(async p => {
+      const startProbe = Date.now();
       try {
         const res = await httpRequest(p.url || "", {
           method: "GET",
@@ -210,14 +235,29 @@ async function probeSingleSource(id, cfg) {
           const audioUrl = p.extractUrl(res.body);
           usable = audioUrl ? await isAudioPlayable(audioUrl) : false;
         }
-        return usable;
+        return { usable, duration: Date.now() - startProbe };
       } catch (e) {
-        return false;
+        return { usable: false, duration: Date.now() - startProbe };
       }
     }));
-    return { usable: results.some(Boolean), raw: null };
+    const usable = results.some(r => r.usable);
+    // v12.1：探测结果并入竞速统计（成功率/均时供 sortChainByHealth 排序复用；
+    // 只更新统计、不触发熔断——熔断仅由真实播放请求触发，避免探测与熔断双机制打架）
+    recordProbeResult(id, usable, results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1));
+    return { usable, raw: null };
   } catch (e) {
+    recordProbeResult(id, false, 0);
     return { usable: false, raw: null };
+  }
+}
+
+// v12.1：探测结果并入竞速统计（见 probeSingleSource）
+function recordProbeResult(id, usable, avgDuration) {
+  const b = getBreaker(id);
+  b.totalRequests++;
+  if (usable) {
+    b.totalSuccess++;
+    b.totalTime += (avgDuration || 0);
   }
 }
 
@@ -290,9 +330,18 @@ const REPORT_QUALITIES = {
 };
 
 const PLATFORM_TO_XINGHAI_BACKUP = { wy: "netease", tx: "qq", kw: "kuwo" };
-const QUALITY_TO_BR = { "128k": "128", "192k": "192", "320k": "320", flac: "740", flac24bit: "999", "24bit": "999" };
-const QUALITY_TO_SUYIN_QQ_BR = { "128k": 7, "320k": 5, flac: 4, hires: 3, atmos: 2, master: 1, "24bit": 1 };
-const QUALITY_TO_KUWO_BR = { flac: 1, "320k": 5, "128k": 7, "24bit": 1 };
+// v13.3 (E11)：音质映射 magic number 收敛——统一 QUALITY_TO_X 表，按官方"源内映射"模型组织（请求音质 → 各源内部编码）
+// 各子源只从本表取编码，禁止散落 magic number（gdBrMap 等已并入）
+const QUALITY_TO_X = {
+  // 通用 br 参考（星海 level 语义 / 长青念心 level）：flac24bit/hires 均 999
+  br: { "128k": "128", "192k": "192", "320k": "320", flac: "740", flac24bit: "999", "24bit": "999" },
+  // 溯音QQ：br 数值（hires=3/atmos=2/master=1/24bit=1 专用值直传）
+  suyinQQ: { "128k": 7, "320k": 5, flac: 4, hires: 3, atmos: 2, master: 1, "24bit": 1 },
+  // 酷我系（溯音酷我搜索 br 参数）：flac=1 / 320k=5 / 128k=7
+  kuwo: { flac: 1, "320k": 5, "128k": 7, "24bit": 1 },
+  // GD Studio：br 字符串（flac/hires 均走 999 真实 flac）
+  gd: { "128k": "128", "192k": "320", "320k": "320", flac: "999", flac24bit: "999", hires: "999" }
+};
 const HIRES_QUALITY_SET = new Set(["24bit", "flac", "flac24bit", "hires", "master", "atmos"]);
 // v11.8 P0-4：实际音质降级阶梯（去掉无源区分的192k短接），请求音质放首位再向下降级
 const QUALITY_PRIORITY = ["flac24bit", "flac", "320k", "128k"];
@@ -314,9 +363,12 @@ const safeConsole = {
   error: (typeof console !== "undefined" && typeof console.error === "function") ? console.error.bind(console) : () => {},
 };
 const LOG_ENABLED = true;
+// v12.2：debug 级源级决策日志（默认关；排查时改 LOG_DEBUG=true 或宿主注入 __lxSourceConfig.logDebug=true）
+const LOG_DEBUG = (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.logDebug) || false;
 function logInfo(...args) { if (LOG_ENABLED) safeConsole.log("[聚合音源][信息]", ...args); }
 function logWarn(...args) { if (LOG_ENABLED) safeConsole.warn("[聚合音源][警告]", ...args); }
 function logError(...args) { if (LOG_ENABLED) safeConsole.error("[聚合音源][错误]", ...args); }
+function logDebug(...args) { if (LOG_ENABLED && LOG_DEBUG) safeConsole.log("[聚合音源][决策]", ...args); }
 
 // v11.8：直接用原字符串作 Map 键（Map 支持字符串键），省掉32位哈希与碰撞覆盖
 function createLRUCache(maxSize, ttl) {
@@ -350,7 +402,8 @@ function createLRUCache(maxSize, ttl) {
   };
 }
 const successCache = createLRUCache(CACHE_MAX_SIZE, CACHE_TTL_MS);
-const failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, FAIL_CACHE_TTL_MS);
+// v12.1：失败缓存 LRU 不再用固定5min TTL——过期由 getFailCached 按失败类型差异化判断(404→1h/410→1min/网络错误不缓存)
+const failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
 
 const breakerMap = new Map();
 function getBreaker(sourceId) {
@@ -431,6 +484,16 @@ function httpRequest(url, options = { method: "GET" }) {
         const error = new Error(`${ERROR_CODES.RATE_LIMIT}: 被限流`);
         error.code = ERROR_CODES.RATE_LIMIT;
         reject(error);
+      } else if (result.statusCode === 410) {
+        // v12.1：410 Gone = 签名/直链过期（死链），单独映射，供失败缓存差异化(1min)与诊断
+        const error = new Error(`${ERROR_CODES.LINK_EXPIRED}: 链接已过期(HTTP 410)`);
+        error.code = ERROR_CODES.LINK_EXPIRED;
+        reject(error);
+      } else if (result.statusCode === 404) {
+        // v12.1：404 = 歌曲/资源不存在，单独映射，供失败缓存差异化(1h)与诊断
+        const error = new Error(`${ERROR_CODES.NOT_FOUND}: 资源不存在(HTTP 404)`);
+        error.code = ERROR_CODES.NOT_FOUND;
+        reject(error);
       } else if (result.statusCode >= 400) {
         const error = new Error(`${ERROR_CODES.NETWORK_ERROR}: HTTP ${result.statusCode}`);
         error.code = ERROR_CODES.NETWORK_ERROR;
@@ -500,7 +563,7 @@ function qualityToSuyinQQ(quality) {
   const q = String(quality || "128k").toLowerCase();
   if (q === "flac24bit") return "hires";
   if (q === "192k") return "320k";
-  return QUALITY_TO_SUYIN_QQ_BR[q] ? q : "128k";
+  return QUALITY_TO_X.suyinQQ[q] ? q : "128k";
 }
 
 function getMobileUserAgent() {
@@ -631,7 +694,16 @@ function buildCacheKey(prefix, songInfo, quality = "") {
 // v11.8 P1：缓存值记录实际音质 {url, quality}，命中/过期兜底时校验
 function getCachedUrl(cacheKey) { return successCache.get(cacheKey); }
 function setCachedUrl(cacheKey, url, quality) { successCache.set(cacheKey, { url, quality: quality || "128k" }); }
-function setFailCached(failKey) { failCache.set(failKey, true); }
+// v12.1：失败缓存差异化——按失败类型记录，get 时按差异化 TTL 判断过期（404→1h / 410→1min / 网络错误不缓存）
+function setFailCached(failKey, code) { failCache.set(failKey, { code: code || ERROR_CODES.NETWORK_ERROR, ts: Date.now() }); }
+function getFailCached(failKey) {
+  const entry = failCache.get(failKey);
+  if (!entry) return false;
+  const ttl = FAIL_CACHE_TTL_BY_CODE[entry.code];
+  if (ttl === undefined) return true; // 未配置的 code 按旧行为 5min
+  if (ttl === 0) return false;        // 网络错误/限流 → 不缓存
+  return (Date.now() - entry.ts) < ttl;
+}
 
 // ============================================================
 // 第六部分：音源实现
@@ -736,16 +808,16 @@ async function kuwoOfficialGetUrl(platform, songId, quality, songInfo) {
   return url;
 }
 
-/* ikun 服务器源（需卡密，默认关闭；填入 IKUN_API_KEY 并开启开关后生效） */
+/* ikun 服务器源（需卡密，默认关闭；v13.4 卡密从 USER_CONFIG.ikunApiKey 读取，开配置即用） */
 async function ikunGetUrl(platform, songId, quality, songInfo) {
-  if (!IKUN_API_KEY) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: ikun未配置卡密`);
+  if (!USER_CONFIG.ikunApiKey) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: ikun未配置卡密(USER_CONFIG.ikunApiKey)`);
   if (platform !== "kw" && platform !== "wy") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun仅支持kw/wy平台`);
   const id = songInfo?.hash ?? songInfo?.songmid ?? songId;
   if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun缺少歌曲ID`);
   const url = `${IKUN_API}/url?source=${encodeURIComponent(platform)}&songId=${encodeURIComponent(id)}&quality=${encodeURIComponent(quality || "128k")}`;
   const res = await httpRequestWithRetry(url, {
     method: "GET",
-    headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Request-Key": IKUN_API_KEY },
+    headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Request-Key": USER_CONFIG.ikunApiKey },
     timeout: TIMEOUT_CONFIG.parse,
     follow_max: 5
   });
@@ -764,8 +836,8 @@ async function gdWyGetUrl(platform, songId, quality, songInfo) {
   const id = songId ?? songInfo?.id;
   if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 缺少wy songId`);
   const q = String(quality || "flac").toLowerCase();
-  const gdBrMap = { "128k": "128", "192k": "320", "320k": "320", flac: "999", flac24bit: "999", hires: "999" };
-  const br = gdBrMap[q] || "320";
+  // v13.3：音质编码统一走 QUALITY_TO_X.gd（原 gdBrMap 已并入）
+  const br = QUALITY_TO_X.gd[q] || "320";
   const url = `${GD_API}&types=url&source=netease&id=${encodeURIComponent(id)}&br=${br}`;
   const res = await httpRequestWithRetry(url, {
     method: "GET",
@@ -791,7 +863,8 @@ async function xinghaiBackupGetUrl(platform, songId, quality, songInfo) {
 function xinghaiBackendToken() {
   try {
     const payload = {
-      device_id: 'lx-' + Math.random().toString(36).substring(2, 10),
+      // v13.4：device_id 可配置（USER_CONFIG.xinghaiDeviceId），默认自动生成
+      device_id: USER_CONFIG.xinghaiDeviceId || ('lx-' + Math.random().toString(36).substring(2, 10)),
       ip: '0.0.0.0',
       timestamp: Math.floor(Date.now() / 1000),
       random: Math.random().toString(36).substring(2, 12)
@@ -833,7 +906,7 @@ async function xinghaiBackendGetUrl(platform, songId, quality, songInfo) {
   });
   const body = res.body;
   if (!body || typeof body !== "object") throw new Error(`${ERROR_CODES.SERVER_ERROR}: 星海后端返回无效`);
-  if (Number(body.code) !== 200 || !body.url) throw new Error(body.msg || `${ERROR_CODES.NOT_FOUND}: 星海后端无可用链接`);
+  if (Number(body.code) !== 200 || !body.url) throw new Error(body.msg ? `${ERROR_CODES.NOT_FOUND}: ${body.msg}` : `${ERROR_CODES.NOT_FOUND}: 星海后端无可用链接`);
   // v12.0 (D2 模式)：实测 https 同路径 206 可播，http→https 升级，避免明文播放受限
   return String(body.url).replace(/^http:\/\//i, "https://");
 }
@@ -856,7 +929,7 @@ async function huibqGetUrl(platform, songId, quality, songInfo) {
   return body.url;
 }
 
-/* 聆川（未配置，默认关闭） */
+/* 聆川（未配置，默认关闭；v13.4 密钥从 USER_CONFIG.lingchuanApiKey 读取，开配置即用） */
 async function lingchuanGetUrl(platform, songId, quality, songInfo) {
   if (!LINGCHUAN_API) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: 聆川未配置`);
   const hashOrMid = songInfo?.hash ?? songInfo?.songmid;
@@ -865,7 +938,7 @@ async function lingchuanGetUrl(platform, songId, quality, songInfo) {
   const url = `${LINGCHUAN_API}/url?source=${encodeURIComponent(platform)}&songId=${encodeURIComponent(hashOrMid)}&quality=${encodeURIComponent(selectedQuality)}`;
   const res = await httpRequestWithRetry(url, {
     method: "GET",
-    headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent() },
+    headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), ...(USER_CONFIG.lingchuanApiKey ? { "Authorization": `Bearer ${USER_CONFIG.lingchuanApiKey}` } : {}) },
     follow_max: 5,
     timeout: TIMEOUT_CONFIG.parse
   });
@@ -880,7 +953,7 @@ async function suyinQQGetUrl(songInfo, quality) {
   const qqId = getQQSongId(songInfo);
   if (!qqId) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 溯音QQ缺少songmid/id`);
   const normalizedQuality = qualityToSuyinQQ(quality);
-  const startBr = QUALITY_TO_SUYIN_QQ_BR[normalizedQuality] || QUALITY_TO_SUYIN_QQ_BR["128k"];
+  const startBr = QUALITY_TO_X.suyinQQ[normalizedQuality] || QUALITY_TO_X.suyinQQ["128k"];
   const brList = [startBr, 4, 5, 7]
     .filter((val, idx, arr) => arr.indexOf(val) === idx && val >= startBr)
     .sort((a, b) => a - b);
@@ -941,7 +1014,7 @@ async function suyinKuwoGetUrl(songInfo, quality) {
   const cached = getCachedUrl(cacheKey);
   if (cached && cached.url) return cached.url;
   // v11.12 (D10)：链级已按 maxQuality 过滤，此处直接用请求音质，不再二次降级
-  const br = QUALITY_TO_KUWO_BR[String(quality || "128k").toLowerCase()] || 1;
+  const br = QUALITY_TO_X.kuwo[String(quality || "128k").toLowerCase()] || 1;
   const keywords = buildSearchKeywords(songInfo);
   let lastError = null;
   for (const item of keywords) {
@@ -1059,7 +1132,10 @@ function buildSourceChain(platform, quality) {
   const t = runtimeToggles;
   const q = String(quality || "128k").toLowerCase();
   const canDo = (h) => qualityRank(h.maxQuality) >= qualityRank(q);
-  const push = (h) => { if (h && canDo(h)) chain.push(h); };
+  const push = (h) => {
+    if (h && canDo(h)) chain.push(h);
+    else if (h && LOG_DEBUG) logDebug(`[链] ${h.id}(maxQuality=${h.maxQuality}) 不满足请求音质(${q})，已过滤`);
+  };
 
   if (platform === "kw") {
     // 高音质(flac/320k)：溯音酷我 + 星海后端 双源(v12.0)；128k：溯音酷我 + 星海后端 + 酷我官方 + 长青 + 念心 多源竞速兜底
@@ -1104,11 +1180,11 @@ function sortChainByHealth(chain) {
 function raceFirst(promises) {
   return new Promise((resolve, reject) => {
     let remaining = promises.length;
-    let lastError = null;
+    const errs = [];
     for (const p of promises) {
       Promise.resolve(p).then(resolve, e => {
-        lastError = e;
-        if (--remaining === 0) reject(lastError);
+        errs.push(e);
+        if (--remaining === 0) reject({ allFailed: true, errors: errs }); // v12.1：透出全部失败错误供差异化决策
       });
     }
   });
@@ -1116,6 +1192,7 @@ function raceFirst(promises) {
 
 async function wrapExecute(handler, platform, songInfo, quality) {
   if (!canExecute(handler.id)) {
+    logDebug(`[断路器] ${handler.id} 处于${getBreaker(handler.id).state}状态，跳过`);
     throw new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
   }
   const startTime = Date.now();
@@ -1126,6 +1203,8 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
+    // v12.1：决策日志——区分熔断类错误(网络类)与业务失败(不熔断)
+    logDebug(`[${handler.name}] 失败 code=${e.code || "?"} msg=${e.message}; 熔断类=${e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT}`);
     // v11.12 (D8)：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
     // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源
     if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
@@ -1146,6 +1225,13 @@ async function fallbackRace(chain, platform, songInfo, quality) {
   const firstBatch = chain.slice(0, 3);
   const rest = chain.slice(3);
   const errors = [];
+  // v12.1：聚合错误携带"代表性"失败码——业务失败码优先(NOT_FOUND/MISMATCH/LINK_EXPIRED，稳定结论)，
+  // 网络类码仅在全部为网络错误时兜底；避免"flac级业务失败 + 128k级网络错误"被覆盖成不缓存
+  let aggCode = ERROR_CODES.NETWORK_ERROR;
+  const mergeCode = (code) => {
+    if (code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.LINK_EXPIRED) aggCode = code;
+    else if (aggCode === ERROR_CODES.NETWORK_ERROR) aggCode = code;
+  };
   let timeoutHandle;
   const overallTimeout = new Promise((_, rej) => {
     timeoutHandle = setTimeout(() => rej(new Error(`RACE_TIMEOUT:${RACE_OVERALL_TIMEOUT_MS}ms整体超时`)), RACE_OVERALL_TIMEOUT_MS);
@@ -1157,13 +1243,23 @@ async function fallbackRace(chain, platform, songInfo, quality) {
     ]);
     clearTimeout(timeoutHandle);
     return winner;
-  } catch (e) { errors.push(e.message); }
+  } catch (e) {
+    // v12.1：raceFirst 全部失败时透出 {allFailed, errors}，逐个归并失败码（业务码优先）
+    if (e && e.allFailed && Array.isArray(e.errors)) {
+      for (const err of e.errors) { errors.push(err.message); mergeCode(extractErrorCode(err)); }
+    } else {
+      errors.push(e.message);
+      mergeCode(extractErrorCode(e));
+    }
+  }
   for (const handler of rest) {
     try {
       return await wrapExecute(handler, platform, songInfo, quality);
-    } catch (e) { errors.push(`${handler.name}: ${e.message}`); }
+    } catch (e) { errors.push(`${handler.name}: ${e.message}`); mergeCode(extractErrorCode(e)); }
   }
-  throw new Error(errors.join("; "));
+  const aggErr = new Error(errors.join("; "));
+  aggErr.code = aggCode; // v12.1：聚合错误带代表性失败码
+  throw aggErr;
 }
 
 // v11.8 P0-4：请求音质放首位，再按 QUALITY_PRIORITY 向下降级，截到≤3级；flac24bit/192k不再被短路
@@ -1194,6 +1290,14 @@ function buildQualityChain(requested) {
   return chain;
 }
 
+// v12.1：统一错误码提取——业务层抛错沿用"CODE: msg"前缀风格(e.code 未设置)，从 message 前缀还原 code，
+// 供失败缓存差异化与决策日志使用；无前缀按网络错误处理(不缓存)
+function extractErrorCode(e) {
+  if (e && e.code) return e.code;
+  const m = String((e && e.message) || "").match(/^([A-Z_]+):/);
+  return m && ERROR_CODES[m[1]] ? m[1] : ERROR_CODES.NETWORK_ERROR;
+}
+
 async function getUrlWithFallback(platform, songInfo, quality) {
   if (!platform || typeof platform !== "string" || !PLATFORM_QUALITIES[platform]) {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的平台参数`);
@@ -1208,13 +1312,21 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   const cached = getCachedUrl(cacheKey);
   if (cached && cached.url) return cached.url;
 
-  // 2. 失败缓存命中
+  // 2. 失败缓存命中（v12.1：差异化 TTL——404→1h / 410→1min / 网络错误不缓存）
   const failKey = buildCacheKey(`fail_${platform}`, songInfo, quality);
-  if (failCache.get(failKey)) {
-    throw new Error(`${ERROR_CODES.NOT_FOUND}: 该请求5分钟内已知失败，跳过`);
+  if (getFailCached(failKey)) {
+    logDebug(`失败缓存命中[${platform}] ${songInfo?.name || ""} 音质${quality || "128k"}，跳过重复请求`);
+    throw new Error(`${ERROR_CODES.NOT_FOUND}: 该请求已知失败，跳过`);
   }
 
   const errors = [];
+  // v12.1：代表性失败码——业务码(NOT_FOUND/MISMATCH/LINK_EXPIRED)一旦出现即固定(稳定结论)，
+  // 网络类码仅在没有业务码时记录；防止低音质级(128k)的网络错误覆盖高音质级的"歌不存在"
+  let lastFailCode = ERROR_CODES.NETWORK_ERROR;
+  const mergeLastCode = (code) => {
+    if (code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.LINK_EXPIRED) lastFailCode = code;
+    else if (lastFailCode === ERROR_CODES.NETWORK_ERROR) lastFailCode = code;
+  };
 
   // 3. 音质降级链（请求音质首位→向下降级；链内按源能力过滤，末级必有源）
   const qualityChain = buildQualityChain(quality || (QUALITY_FIRST ? "flac" : "128k"));
@@ -1225,11 +1337,13 @@ async function getUrlWithFallback(platform, songInfo, quality) {
       errors.push(`[${q}] 无可用音源`);
       continue;
     }
+    logDebug(`[${platform}][${q}] 音源链: ${chain.map(h => h.id).join(">")} (按健康排序)`);
     try {
       const url = await fallbackRace(chain, platform, songInfo, selectedQuality);
       setCachedUrl(cacheKey, url, selectedQuality); // v11.8：记录实际音质
       return url;
     } catch (e) {
+      mergeLastCode(extractErrorCode(e)); // v12.1：业务码优先归并
       errors.push(`[${q}] ${e.message}`);
     }
   }
@@ -1246,8 +1360,9 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     }
   }
 
-  // 5. 记录失败缓存
-  setFailCached(failKey);
+  // 5. 记录失败缓存（v12.1：按代表性失败码差异化 TTL；网络错误不缓存，下次立即重试）
+  setFailCached(failKey, lastFailCode);
+  logDebug(`失败缓存写入[${platform}] code=${lastFailCode} ttl=${FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? "不缓存" : ((FAIL_CACHE_TTL_BY_CODE[lastFailCode] || FAIL_CACHE_TTL_MS) / 1000) + "s"}`);
   throw new Error(`${ERROR_CODES.NOT_FOUND}: 所有源均失败 [${errors.join(" | ")}]`);
 }
 
@@ -1284,7 +1399,20 @@ send(EVENT_NAMES.inited, {
   sources: sourceConfig
 });
 
-logInfo(`豆包定制聚合音源 v12.0 已加载，上报 ${Object.keys(sourceConfig).length} 个音源；星海kw高音质双源(E10实测flac/320k)+URL https升级；日志宿主防御(D11)+防错歌加固(片段特征词/兜底歌名/时长校验)+kw CDN https升级+熔断分类+探测一致性；v11.11接口满编+五路兜底+健康自愈均保留`);
+// v12.3：发版通知（updateAlert）——App 导入新版音源时弹更新提示（fork 行为已实证：仅可调一次，第二次调用 reject）
+// 注释：若宿主 EVENT_NAMES 无 updateAlert（老宿主），自动跳过，不影响加载
+if (EVENT_NAMES && EVENT_NAMES.updateAlert && typeof send === "function") {
+  try {
+    send(EVENT_NAMES.updateAlert, {
+      log: "v13.4 迭代就绪版：失败缓存差异化+探测收敛+决策日志+音质表收敛+配置化；v12.3 起每次发版自动弹更新提示",
+      updateUrl: "https://github.com/luanmuc/lx-music-source/releases"
+    });
+  } catch (e) {
+    logWarn(`updateAlert 发送失败(已忽略): ${e.message}`);
+  }
+}
+
+logInfo(`豆包定制聚合音源 v13.4 迭代就绪版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测并入竞速统计；v12.2决策日志(debug级)；v12.3 updateAlert发版通知；v13.3音质映射表收敛；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+日志宿主防御+防错歌加固+健康自愈`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

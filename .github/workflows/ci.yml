@@ -1,0 +1,51 @@
+name: lx-source CI
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'lx-source.js'
+      - 'test/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  schedule:
+    # v13.1：每日端点巡检，自动刷新健康表并写回仓库（UTC 06:00 ≈ 北京时间 14:00）
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}   # 手动触发
+
+jobs:
+  # ---------- v13.0：语法 + 冒烟测试 ----------
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: L0 语法检查
+        run: node --check lx-source.js
+      - name: L1 冒烟测试（mock lx 宿主，8 组用例）
+        run: node test/lx-source-smoke-test.js
+      - name: 巡检脚本语法
+        run: node --check scripts/probe.js
+
+  # ---------- v13.1：每日端点巡检 + 健康表写回 ----------
+  probe:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 端点巡检（Range 判定）
+        run: node scripts/probe.js
+      - name: 健康表写回（自动提交）
+        run: |
+          git config user.name 'luanmuc[bot]'
+          git config user.email 'luanmuc@users.noreply.github.com'
+          git add README_HEALTH.md
+          git commit -m "chore(probe): 每日端点巡检刷新健康表 [自动]" -q || echo "健康表无变化，跳过提交"
+          git push origin HEAD:${GITHUB_REF_NAME} || echo "push 失败（无权限/冲突时忽略，巡检产物仍在 Actions 日志）"

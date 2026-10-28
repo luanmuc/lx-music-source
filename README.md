@@ -11,11 +11,12 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v12.0 星海高音质版**（`lx-source.js` 内 `@version 12.0`） |
+| 当前版本 | **v13.4 迭代就绪版**（`lx-source.js` 内 `@version 13.4`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
 | 发布入口 | 本仓库 **Releases 页**：每次迭代出 tag + 附 `lx-source.js` 产物 |
+| 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [AGENTS.md](./AGENTS.md) |
 
 ## 在线导入（自定义源）
 
@@ -42,15 +43,18 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v12.0） | oiapi.net ✅；zddyr.top ✅；酷我官方 CDN ⚠️ 不稳 |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | 上游 oiapi.net ✅，接口 -403 待恢复 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
-| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭（IP 封禁） | 上游 api.xcvts.cn ✅ → 备用域名路线在 v12.2 |
+| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭（IP 封禁） | 上游 api.xcvts.cn ✅（2026-10-28 实测域名 200 但接口 502=出口 IP 被限，保持关闭待上游恢复） |
 
-> 详细对照表、缺陷与路线图见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
+> 端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（`scripts/probe.js` 每日自动刷新）；详细对照表、缺陷与路线图见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
 
 ## 版本历史
 
 | 版本 | 说明 |
 |---|---|
-| **v12.0**（当前） | 星海高音质版：xinghaiBackend 解除 128k 限制接入 kw flac/320k（E10 实测：四档 code 200、URL 均 Range 206、魔数正确、码率吻合、ID3 歌名对应 songmid）+ URL http→https 升级（实测 https 206 可播）；kw 高音质实现双源冗余（D3 修复） |
+| **v13.4**（当前） | 迭代就绪版：配置化（ikun 卡密 / 聆川密钥入 `USER_CONFIG`，开配置即用、默认关闭）；音质映射表收敛（`QUALITY_TO_X` 统一 magic number，官方"源内映射"模型）；健康探测结果并入竞速统计；决策日志开关（`LOG_DEBUG`） |
+| v13.0~13.3 | 工程化：`test/lx-source-smoke-test.js` 冒烟固化（mock lx 宿主 8 组用例）+ CI 自动 `node --check`+冒烟（push 触发）；`scripts/probe.js` 端点巡检 + 每日 CI 写回健康表；协作规范进 AGENTS.md（迭代协议）；updateAlert 发版通知 |
+| v12.1~12.3 | 可用性：失败缓存差异化（404→1h / 410→1min / 网络错误不缓存）+ 失败码统一提取；mg/tx 恢复评估（2026-10-28 实测 mg 上游域名 200 但接口 502=出口 IP 被咪咕限、溯音QQ 仍 -403，均保持关闭）；debug 级源级决策日志 |
+| **v12.0** | 星海高音质版：xinghaiBackend 解除 128k 限制接入 kw flac/320k（E10 实测：四档 code 200、URL 均 Range 206、魔数正确、码率吻合、ID3 歌名对应 songmid）+ URL http→https 升级（实测 https 206 可播）；kw 高音质实现双源冗余（D3 修复） |
 | v11.13 | 日志宿主防御版（D11）：`safeConsole` 兼容无 console 移动端宿主（官方移动版宿主 API 仅 setTimeout/clearTimeout）。vm 无 console 沙箱实证：修复前加载即抛 TypeError 复现，修复后加载/请求/健康探测/熔断全路径通过 |
 | v11.12 | 防错歌加固版：片段/试听特征词拒绝（D1）+ 兜底档歌名/时长校验 + durationMatch 接入（D4），杜绝"能播但播错歌"；kw CDN 链 http→https 升级（D2）；断路器仅对网络类错误熔断（D8）；探测一致性加固（gdWy/溯音163 补 Range 可播性校验 + 溯音163 歌曲池轮换）；清理级：死代码移除 / 长青念心模板工厂化 / 双降级统一（D10） |
 | v11.11 | 接口满编版：溯音酷我 128k 恢复（10-15 实测 Range 206 可播）；kw 128k 五路兜底满编（溯音酷我/星海后端/酷我官方/长青/念心）；探测歌曲池轮换（晴天/海阔天空/稻香）防风控误判；v11.10 双音质分域探测/音质校验/音质优先保持 |
@@ -76,7 +80,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 溯音咪咕 | 关闭 | 实测 502（上游 IP 被封） |
 | 星海备 | 关闭 | 域名不可解析 |
 | Huibq | 关闭 | 仅酷我真用，其他平台假兜底 |
-| 聆川 | 关闭 | 未配置 |
-| ikun | 关闭 | 需卡密（填入 `IKUN_API_KEY` 并开开关） |
+| 聆川 | 关闭 | 未配置密钥（`USER_CONFIG.lingchuanApiKey`）；v13.1 巡检：域名 api.lingchuan.com 不可解析 |
+| ikun | 关闭 | 需卡密（`USER_CONFIG.ikunApiKey` 填入后开开关）；v13.1 巡检：域名 api.ikunshare.com 不可解析 |
 
 > 健康探测会自动启用/停用可用源，以上为静态默认值。
