@@ -44,7 +44,8 @@ jobs:
         with:
           node-version: 20
       - name: 端点巡检（Range 判定）
-        run: node scripts/probe.js
+        # 存在失败端点时脚本 exit 2（信号），用 || true 不阻断写回——健康表需要记录失败状态
+        run: node scripts/probe.js || true
       - name: 健康表写回（自动提交）
         run: |
           git config user.name 'luanmuc[bot]'
