@@ -254,7 +254,29 @@ async function test(name, fn) {
   const fallbackUrl = await requestUrl('kw', 'flac', fallbackSong);
   assert.ok(fallbackUrl.includes('example.com/xh.flac'), `未校验候选应兜底返回，实际=${fallbackUrl}`);
 
-  console.log('\n冒烟测试完成：11 组用例');
+  console.log('[T12] v14.3 探测巡检增强：分级轮次 + 失效源休眠复活');
+  // 12a：分级轮次判定——core 每轮，secondary 每3轮一探
+  assert.strictEqual(mod.tierShouldProbe(1, 'core'), true, 'core 第1轮应探测');
+  assert.strictEqual(mod.tierShouldProbe(2, 'secondary'), false, 'secondary 第2轮不应探测');
+  assert.strictEqual(mod.tierShouldProbe(3, 'secondary'), true, 'secondary 第3轮应探测');
+  assert.strictEqual(mod.tierShouldProbe(4, 'secondary'), false, 'secondary 第4轮不应探测');
+  // 12b：连续3轮失败 → 进入休眠，buildProbeConfig 不再包含该源（用真实次要源 kuwoOfficial）
+  const oldRound = globalThis.__probeRound;
+  globalThis.__probeRound = 1;
+  const sleepId = 'kuwoOfficial';
+  for (let i = 0; i < 3; i++) mod.applyProbeResult(sleepId, false);
+  assert.strictEqual(mod.probeState.sleeping[sleepId], true, '连续3轮失败应进入休眠');
+  assert.ok(!(sleepId in mod.buildProbeConfig()), '休眠中且未到复活轮，配置不应包含该源');
+  // 12c：到复活轮（轮差>=10），buildProbeConfig 重新包含该源
+  globalThis.__probeRound = 12; // 1 + 11 = 12，轮差 11 >= 10
+  assert.ok(sleepId in mod.buildProbeConfig(), '到达复活试探轮应重新包含该源');
+  // 12d：探测通过即复活，清休眠状态
+  mod.applyProbeResult(sleepId, true);
+  assert.ok(!mod.probeState.sleeping[sleepId], '探测通过应清休眠');
+  assert.ok(!mod.probeState.deadCount[sleepId], '探测通过应清失败累计');
+  globalThis.__probeRound = oldRound;
+
+  console.log('\n冒烟测试完成：12 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

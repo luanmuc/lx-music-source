@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v14.2竞速结果匹配校验：verified源(内部songInfoMatch)结果优先，未校验源首个成功等600ms窗口防'快但错歌'抢答；v14.1源健康权重自学习(置信度收缩+连续失败惩罚，探测低权重)；v14.0失败原因结构化透出(detail数组)；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 14.2 竞速匹配校验版
+ * @description v14.3探测巡检增强：分级探测(core每轮/secondary每3轮一探)+失效源休眠复活(连续3轮失败休眠，每10轮复活试探，探测通过即回归)；v14.2竞速匹配校验(verified源优先)；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 14.3 探测巡检增强版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -133,6 +133,12 @@ const HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1000; // 加载后1分钟开始第一
 const HEALTH_CHECK_TIMEOUT = 6000;                // 单次探测超时(v11.8:4000→6000，减少误摘)
 const PROBE_PASS_REQUIRED = 2;                    // 连续通过2次才判定可用（防抖动）
 const PROBE_FAIL_REQUIRED = 2;                    // 连续失败2次才判定失效（防抖动）
+// v14.3：分级探测——核心源(播放主链路)每轮探测，次要源每3轮一探（省请求且减少对免费源的骚扰）
+const PROBE_TIER_CORE_INTERVAL = 1;
+const PROBE_TIER_SECONDARY_INTERVAL = 3;
+// v14.3：失效源休眠——连续3轮失败进入休眠(不再每轮空打)，每10轮做一次复活试探（新端点/上游恢复时自动回归）
+const PROBE_SLEEP_AFTER_DEAD = 3;
+const PROBE_WAKE_EVERY_ROUND = 10;
 // v11.11：探测歌曲池轮换（晴天/海阔天空/稻香），避免单曲被风控导致探测误判
 const PROBE_SONG_POOL = ["晴天", "海阔天空", "稻香"];
 // v11.12 (D9)：溯音163 探测免费歌池（实测 code:0 + data[0].url 真实mp3；186016周杰伦VIP无url已排除）
@@ -141,25 +147,29 @@ const PROBE_163_IDS = ["2652820720", "347230"];
 // 各源探测请求定义：仅保留当前可用源，失效源不再每轮空打
 function buildProbeConfig() {
   const probeSong = PROBE_SONG_POOL[(globalThis.__probeRound || 0) % PROBE_SONG_POOL.length];
-  return {
+  const cfg = {
     gdWy: {
+      tier: "core",
       // v11.12 (D9)：补 Range 可播性二次校验（防"网关200+签名过期410"假存活）；GD 探测 ID 暂固定 186016（沙箱不可达，未验证新曲）
       url: `${GD_API}&types=url&source=netease&id=186016&br=320`,
       check: b => !!b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0,
       extractUrl: b => (b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0) ? b.url : null
     },
     xinghaiBackend: {
+      tier: "core",
       url: `${XINGHAI_BACKEND_API}?source=kw&name=${encodeURIComponent("晴天")}&singer=${encodeURIComponent("周杰伦")}&songmid=1&interval=&albumName=&quality=128k`,
       headers: { "X-Token": xinghaiBackendToken(), "X-Client": "lx-aggregate/11.7" },
       check: b => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0
     },
     suyin163: {
+      tier: "core",
       // v11.12 (D9)：免费歌池轮换 + Range 可播性二次校验（与溯音酷我探测标准一致）
       url: `${SUYIN_163_API}?id=${PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length]}`,
       check: b => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0,
       extractUrl: b => (b && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0) ? b.data[0].url : null
     },
     suyinKuwo: {
+      tier: "core",
       // v11.10 P0：双音质分域探测(flac br=1 + 128k br=7)，任一可播即算源存活；
       // 修复"128k仍410死链但flac已恢复新签名"时单路探测误判整体失效、误摘高音质源
       // v11.11：探测歌曲走 PROBE_SONG_POOL 轮换，防单曲被风控误判
@@ -177,11 +187,13 @@ function buildProbeConfig() {
       ]
     },
     wyOuter: {
+      tier: "core",
       url: WY_OUTER_API.replace("{id}", "2652820720"),
       headers: { "User-Agent": getMobileUserAgent() },
       checkRes: res => res.statusCode === 200 && /audio|octet|mpeg/i.test(String(res.headers?.["content-type"] || ""))
     },
     kuwoOfficial: {
+      tier: "secondary",
       url: `${KUWO_SEARCH_API}?client=kt&all=${encodeURIComponent("晴天 周杰伦")}&pn=0&rn=1&ft=music&rformat=json&encoding=utf8`,
       headers: { "User-Agent": getMobileUserAgent() },
       check: b => {
@@ -191,21 +203,47 @@ function buildProbeConfig() {
     },
     // v11.9：长青kw/念心kw 302→car-er.kuwo.cn新鲜mp3，Range校验可播(用rid=228908 晴天周杰伦)
     changqingVip: {
+      tier: "secondary",
       url: CHANGQING_URL_TEMPLATES.kw.replace("{id}", "228908").replace("{level}", "standard"),
       headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
       checkRes: res => (res.statusCode === 200 || res.statusCode === 206) && /audio|octet|mpeg/i.test(String(res.headers?.["content-type"] || "")) && !/kw\.php/.test(String(res.url || ""))
     },
     nianxinVip: {
+      tier: "secondary",
       url: NIANXIN_URL_TEMPLATES.kw.replace("{id}", "228908").replace("{level}", "standard"),
       headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
       checkRes: res => (res.statusCode === 200 || res.statusCode === 206) && /audio|octet|mpeg/i.test(String(res.headers?.["content-type"] || "")) && !/nxinxz\.com/.test(String(res.url || ""))
     }
   };
+  // v14.3：休眠源过滤——连续 PROBE_SLEEP_AFTER_DEAD 轮失败后不再每轮空打；
+  // 每 PROBE_WAKE_EVERY_ROUND 轮做一次复活试探（上游恢复/新端点时自动回归）
+  const round = globalThis.__probeRound || 0;
+  for (const id of Object.keys(cfg)) {
+    if (probeState.sleeping[id]) {
+      const since = probeState.sleepRound[id] || 0;
+      if (round - since < PROBE_WAKE_EVERY_ROUND) {
+        delete cfg[id]; // 休眠中且未到复活轮：跳过本轮探测
+      } else {
+        logWarn(`健康探测: [${id}] 到达复活试探轮，重探`);
+      }
+    }
+  }
+  return cfg;
+}
+
+// v14.3：分级探测轮次判定（core 每轮 / secondary 每 N 轮一探）
+function tierShouldProbe(round, tier) {
+  const interval = tier === "secondary" ? PROBE_TIER_SECONDARY_INTERVAL : PROBE_TIER_CORE_INTERVAL;
+  return round % interval === 0;
 }
 
 const probeState = {
   passCount: {},
   failCount: {},
+  // v14.3：失效休眠状态——deadCount 连续失败累计；sleeping=true 进入休眠；sleepRound 记录休眠起点轮
+  deadCount: {},
+  sleeping: {},
+  sleepRound: {},
   running: false
 };
 
@@ -267,6 +305,10 @@ function applyProbeResult(id, usable) {
   if (usable) {
     probeState.failCount[id] = 0;
     probeState.passCount[id] = (probeState.passCount[id] || 0) + 1;
+    // v14.3：探测通过即复活（清休眠），避免复活试探成功后被下一次抖动打回休眠
+    delete probeState.deadCount[id];
+    delete probeState.sleeping[id];
+    delete probeState.sleepRound[id];
     if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
       const wasOff = runtimeToggles[id] === false;
       if (wasOff) {
@@ -286,6 +328,13 @@ function applyProbeResult(id, usable) {
       }
       probeState.failCount[id] = 0;
     }
+    // v14.3：连续失败累计 → 休眠（不再每轮空打无效请求）
+    probeState.deadCount[id] = (probeState.deadCount[id] || 0) + 1;
+    if (probeState.deadCount[id] >= PROBE_SLEEP_AFTER_DEAD && !probeState.sleeping[id]) {
+      probeState.sleeping[id] = true;
+      probeState.sleepRound[id] = globalThis.__probeRound || 0;
+      logWarn(`健康探测: [${id}] 连续${PROBE_SLEEP_AFTER_DEAD}轮失败，进入休眠(每${PROBE_WAKE_EVERY_ROUND}轮复活试探一次)`);
+    }
   }
 }
 
@@ -295,8 +344,9 @@ async function runHealthCheck() {
   // v11.11：轮次先递增再构建配置，确保探测歌曲池轮换从首轮生效
   const round = (globalThis.__probeRound = (globalThis.__probeRound || 0) + 1);
   const probeConfig = buildProbeConfig();
-  const ids = Object.keys(probeConfig);
-  logInfo(`健康探测: 开始第${round}轮，共${ids.length}个源(并发)`);
+  // v14.3：分级探测——核心源每轮，次要源每 PROBE_TIER_SECONDARY_INTERVAL 轮一探
+  const ids = Object.keys(probeConfig).filter(id => tierShouldProbe(round, probeConfig[id].tier || "core"));
+  logInfo(`健康探测: 开始第${round}轮，共${ids.length}个源(核心每轮/次要${PROBE_TIER_SECONDARY_INTERVAL}轮一探)`);
   // v11.8 P2：改并发探测，一轮从~50s降到~6s
   await Promise.all(ids.map(async id => {
     const result = await probeSingleSource(id, probeConfig[id]);
@@ -1521,6 +1571,12 @@ if (typeof module !== "undefined" && module.exports) {
     recordSuccess,
     recordFailure,
     ERROR_CODES,
-    QUALITY_PRIORITY
+    QUALITY_PRIORITY,
+    // v14.3：探测巡检增强（分级轮次 + 休眠复活 + 配置构建）
+    tierShouldProbe,
+    applyProbeResult,
+    buildProbeConfig,
+    probeState,
+    runtimeToggles
   };
 }
