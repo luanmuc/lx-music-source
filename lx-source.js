@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 24.0 音质协商版
+ * @description v18.1 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 18.1 Juhe源族扩充版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -146,6 +146,7 @@ const SOURCE_TOGGLES = {
   nianxinVip: true,    // 念心：v11.9实测仅kw恢复(302→car-er.kuwo.cn新鲜mp3)，仅kw 128k兜底
   huibq: false,         // Huibq：实测仅酷我真实，其他平台假兜底
   juheKw: true,          // v18.0：Juhe聚合API(kw)——独立新源族，全链路实测可用
+  juheTx: true, juheWy: true, juheKg: true, juheMg: true, // v18.1：Juhe 源族扩充(tx 实测通；wy/kg/mg 服务端受限时自动熔断降级)
   lingchuan: false,     // 聆川：需配置
   ikun: false           // ikun服务器源：需卡密(USER_CONFIG.ikunApiKey)，填入后开启
 };
@@ -1348,14 +1349,24 @@ function createTemplateVipSource(templateUrl, rejectRe, sourceName) {
 async function juheGetUrl(platform, songId, quality, songInfo) {
   const juheQ = String(quality || "128k").toLowerCase();
   const mid = songInfo?.songmid || songInfo?.id || songId || "";
+  // v18.1：各平台标识字段——kw/tx/mg 用 songmid，wy 用 id，kg 用 hash（酷狗哈希）
+  // 实测（2026-10-28）：tx 全链路通(POST→303→vkeys 中转→qqmusic 直链)；wy/kg/mg 服务端
+  // 当前受限(网易云上游 1027 风控/取链失败/超时)，注册为尽力型源，恢复即自动可用
+  const idFields = platform === "kg"
+    ? { hash: songInfo?.hash || mid, songmid: mid, id: mid }
+    : platform === "wy"
+      ? { id: mid, songmid: mid }
+      : { songmid: mid, id: mid };
   const info = {
     type: juheQ,
     musicInfo: {
       name: songInfo?.name || "",
       singer: songInfo?.singer || "",
+      album: songInfo?.album || "",
+      duration: songInfo?.duration || 0,
+      interval: Math.round((songInfo?.duration || 0) / 1000),
       source: platform === "kw" ? "kw" : String(platform || "kw"),
-      songmid: mid,
-      id: mid,
+      ...idFields,
       quality: juheQ
     }
   };
@@ -1451,6 +1462,11 @@ const SOURCE_HANDLERS = {
   suyin163: { id: "suyin163", name: "溯音163", fn: (platform, songId, quality, songInfo) => suyinGetUrl("wy", songId, quality, songInfo), maxQuality: "128k" },
   suyinKuwo: { id: "suyinKuwo", name: "溯音酷我", fn: (platform, songId, quality, songInfo) => suyinKuwoGetUrl(songInfo, quality), maxQuality: "flac", verified: true }, // v14.2：内部做 songInfoMatch 校验，竞速优先
   juheKw: { id: "juheKw", name: "Juhe聚合(kw)", fn: juheGetUrl, maxQuality: "flac" }, // v18.0：Juhe 独立新源族(kw 全音质)
+  // v18.1：Juhe 源族扩充——tx 全链路实测通；wy/kg/mg 协议已实证(按平台标识字段路由)，服务端受限时由熔断/降级兜底
+  juheTx: { id: "juheTx", name: "Juhe聚合(tx)", fn: juheGetUrl, maxQuality: "flac" },
+  juheWy: { id: "juheWy", name: "Juhe聚合(wy)", fn: juheGetUrl, maxQuality: "flac" },
+  juheKg: { id: "juheKg", name: "Juhe聚合(kg)", fn: juheGetUrl, maxQuality: "flac" },
+  juheMg: { id: "juheMg", name: "Juhe聚合(mg)", fn: juheGetUrl, maxQuality: "flac" },
   suyinMigu: { id: "suyinMigu", name: "溯音咪咕", fn: (platform, songId, quality, songInfo) => suyinGetUrl("mg", songId, quality, songInfo), maxQuality: "flac", verified: true }, // v14.2：内部做 songInfoMatch 校验，竞速优先
   changqingVip: { id: "changqingVip", name: "长青kw", fn: changqingGetUrl, maxQuality: "128k" },
   nianxinVip: { id: "nianxinVip", name: "念心kw", fn: nianxinGetUrl, maxQuality: "128k" }
@@ -1483,6 +1499,8 @@ function buildSourceChain(platform, quality) {
     // 高音质(flac/320k)：GD Studio 优先(高音质补充)，suyinKuwo 搜索兜底；
     // 128k：suyin163 + wyOuter 官方直连优先（GD Studio 不进128k链，省配额）
     if (t.gdWy && (q === "flac" || q === "flac24bit" || q === "320k" || q === "hires")) push(SOURCE_HANDLERS.gdWy);
+    // v18.1：Juhe wy 全音质兜底（服务端恢复即自动参与竞速）
+    if (t.juheWy) push(SOURCE_HANDLERS.juheWy);
     if (t.suyin163) push(SOURCE_HANDLERS.suyin163);
     if (t.wyOuter) push(SOURCE_HANDLERS.wyOuter);
     if (t.ikun) push(SOURCE_HANDLERS.ikun);
@@ -1491,7 +1509,11 @@ function buildSourceChain(platform, quality) {
   if (t.suyinKuwo && platform !== "kw") push(SOURCE_HANDLERS.suyinKuwo);
   // 其他平台/备用源
   if (t.suyinQQ && platform === "tx") push(SOURCE_HANDLERS.suyinQQ);
+  if (t.juheTx && platform === "tx") push(SOURCE_HANDLERS.juheTx); // v18.1：Juhe tx 兜底
   if (t.suyinMigu && platform === "mg") push(SOURCE_HANDLERS.suyinMigu);
+  if (t.juheMg && platform === "mg") push(SOURCE_HANDLERS.juheMg); // v18.1：Juhe mg 兜底
+  // v18.1：Juhe kg——kg 平台专属新源（酷狗 hash 路由）
+  if (t.juheKg && platform === "kg") push(SOURCE_HANDLERS.juheKg);
   if (t.xinghaiBackup && platform !== "kg") push(SOURCE_HANDLERS.xinghaiBackup);
   // 长青/念心已在 kw 块内按 kw-only 顺序 push（maxQuality=128k，仅进kw 128k链）
   if (t.huibq) push(SOURCE_HANDLERS.huibq);
@@ -1891,7 +1913,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v24.0 音质协商版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v18.1 Juhe源族扩充版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

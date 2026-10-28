@@ -507,7 +507,33 @@ async function test(name, fn) {
   const lastQs = Object.values(snapV25).map(x => x.lastQuality).filter(Boolean);
   assert.ok(lastQs.length >= 1, `应有源记录实际交付音质 lastQuality，实际 ${JSON.stringify(lastQs)}`);
 
-  console.log('\n冒烟测试完成：25 组用例');
+  console.log('[T26] v18.1 Juhe源族扩充：tx 303→vkeys→直链全链路，wy/kg/mg 四源注册');
+  resetMock();
+  const juheRoute26 = (u) => {
+    if (u.includes('api.music.lerd.dpdns.org/tx')) {
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        code: 303,
+        data: {
+          request: { url: 'https://api.vkeys.cn/v2/music/tencent/geturl?mid=T1&quality=6', options: { method: 'GET' } },
+          response: { check: { key: ['body', 'code'], value: 200 }, url: ['body', 'data', 'url'] }
+        }
+      }) };
+    }
+    if (u.includes('api.vkeys.cn')) {
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/juhe-tx.flac' } }) };
+    }
+    // 竞速隔离：仅 Juhe tx 链路可用
+    return { error: 'ECONNREFUSED' };
+  };
+  mockRoute = juheRoute26;
+  const txUrl = await requestUrl('tx', 'flac', { name: 'Juhe tx 测试曲', singer: '测试', duration: 200000, songmid: '004Z8Ihr0JIu5s' });
+  assert.ok(typeof txUrl === 'string' && txUrl.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${txUrl}`);
+  const snapV26 = mod.getHealthSnapshot();
+  for (const id of ['juheTx', 'juheWy', 'juheKg', 'juheMg']) {
+    assert.ok(snapV26[id], `快照应含 ${id} 新源族`);
+  }
+
+  console.log('\n冒烟测试完成：26 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
