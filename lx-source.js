@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 25.6 第二轮全量审计修复版
+ * @description v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 25.7 第三轮全维度审计修复版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -271,7 +271,12 @@ function buildProbeConfig() {
   // v14.3：休眠源过滤——连续 PROBE_SLEEP_AFTER_DEAD 轮失败后不再每轮空打；
   // 每 PROBE_WAKE_EVERY_ROUND 轮做一次复活试探（上游恢复/新端点时自动回归）
   const round = globalThis.__probeRound || 0;
+  // v25.7：探测清单过滤——(1) 用户手动关闭(manualOff)的源不探测：用户已明确不想用，白耗外呼还会把源标成"休眠"污染面板语义；
+  // (2) 默认关闭(SOURCE_TOGGLES=false)且未被手动开启的源不探测：juhe 五源等默认关，探测失败进 sleeping 会让面板显示"休眠"而非"已关"。
+  // 注意：自动关闭的源(SOURCE_TOGGLES=true 被探测失败关掉)保留探测——这是自愈复活闭环的前提
   for (const id of Object.keys(cfg)) {
+    if (manualOff[id]) { delete cfg[id]; continue; }
+    if (SOURCE_TOGGLES[id] === false && runtimeToggles[id] !== true) { delete cfg[id]; continue; }
     if (probeState.sleeping[id]) {
       const since = probeState.sleepRound[id] || 0;
       if (round - since < PROBE_WAKE_EVERY_ROUND) {
@@ -1999,7 +2004,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v25.6 第二轮全量审计修复版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v25.7 第三轮全维度审计修复版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -2021,7 +2026,7 @@ if (typeof module !== "undefined" && module.exports) {
     // v14.3：探测巡检增强（分级轮次 + 休眠复活 + 配置构建）
     tierShouldProbe,
     applyProbeResult,
-    buildProbeConfig,
+    buildProbeConfig, // v25.7：导出供测试断言探测清单过滤（关闭源不探测/自愈闭环保留）
     probeState,
     runtimeToggles,
     // v15.2：健康统计快照（App 健康面板/巡检消费）

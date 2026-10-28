@@ -617,7 +617,33 @@ async function test(name, fn) {
   assert.ok(cntAfter === cntBefore, `410应写1min失败缓存(二次请求不重试)，前${cntBefore} 后${cntAfter}`);
   assert.ok(f2 && /LINK_EXPIRED|已知失败/.test(f2.message), `二次请求应命中失败缓存，实际 ${f2 && f2.message}`);
 
-  console.log('\n冒烟测试完成：28 组用例');
+  console.log('[T29] v25.7 探测清单过滤：默认关闭/手动关闭源不探测，自动关闭源保留探测(自愈闭环)');
+  // 纯函数级断言（避免多实例后台探测定时器共享 __probeRound 干扰轮次）
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole29 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole29; }
+  const modV29 = require(SRC);
+  // 1) 默认关闭源(juhe 五源)不在探测清单
+  let pcfg = modV29.buildProbeConfig();
+  for (const jid of ['juheKw', 'juheTx', 'juheWy', 'juheKg', 'juheMg']) {
+    assert.ok(!(jid in pcfg), '默认关闭源 ' + jid + ' 不应在探测清单');
+  }
+  // 2) 手动关闭源不在探测清单
+  await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'suyinKuwo', enabled: false } });
+  pcfg = modV29.buildProbeConfig();
+  assert.ok(!('suyinKuwo' in pcfg), '手动关闭源 suyinKuwo 不应在探测清单');
+  await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'suyinKuwo', enabled: true } });
+  // 3) 自动关闭源保留探测（自愈闭环）：netfail 探测 2 轮 → 自动关闭(enabled=false) → 探测清单仍含它
+  mockRoute = buildRoutes('netfail');
+  for (let i = 0; i < 2; i++) await requestHandler({ action: 'probe', source: 'kw', info: {} }).catch(() => {});
+  const snap29 = modV29.getHealthSnapshot();
+  assert.ok(snap29.suyinKuwo.enabled === false, '探测连续失败应自动关闭 suyinKuwo: ' + snap29.suyinKuwo.enabled);
+  pcfg = modV29.buildProbeConfig();
+  assert.ok('suyinKuwo' in pcfg, '自动关闭源应保留在探测清单(自愈前提)');
+
+  console.log('\n冒烟测试完成：29 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
