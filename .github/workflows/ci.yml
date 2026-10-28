@@ -24,7 +24,7 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
-      - name: L1 冒烟测试（mock lx 宿主，12 组用例）
+      - name: L1 冒烟测试（mock lx 宿主，14 组用例）
         run: node test/lx-source-smoke-test.js
       - name: 巡检脚本语法
         run: node --check scripts/probe.js
@@ -46,6 +46,6 @@ jobs:
         run: |
           git config user.name 'luanmuc[bot]'
           git config user.email 'luanmuc@users.noreply.github.com'
-          git add README_HEALTH.md
-          git commit -m "chore(probe): 每日端点巡检刷新健康表 [自动]" -q || echo "健康表无变化，跳过提交"
+          git add README_HEALTH.md docs/probe-history.jsonl
+          git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录 [自动]" -q || echo "健康表无变化，跳过提交"
           git push origin HEAD:${GITHUB_REF_NAME} || echo "push 失败（无权限/冲突时忽略，巡检产物仍在 Actions 日志）"

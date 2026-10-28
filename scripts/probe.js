@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * lx-source.js 端点巡检（v13.1，仿 pdone probe.py 思路）
+ * lx-source.js 端点巡检（v16.0：多日成功率统计）
  * 用法：
  *   node scripts/probe.js              # 探测全部端点，输出 README 可用性表（健康表）
  *   node scripts/probe.js --json       # 输出机器可读 JSON（供 CI 写回/告警）
@@ -9,7 +9,8 @@
  * 判定规则（与音源内部一致）：
  *   - HTTP 2xx/3xx + 音频 content-type 或 Range 206 → 可用
  *   - 连续两次失败才判失效（CI 每日跑，单次探测失败仅记录）
- * 输出：README_HEALTH.md 覆盖写 / stdout JSON
+ * 输出：README_HEALTH.md 覆盖写（含近7日成功率）/ 历史记录 docs/probe-history.jsonl 追加 / stdout JSON
+ * v16.0：每次巡检结果追加到 docs/probe-history.jsonl，按 URL 聚合近 7 日成功率写入健康表
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,10 +19,53 @@ const https = require('https');
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
 const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
+const HIST_DIR = path.join(__dirname, '..', 'docs');
+const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
+const HISTORY_DAYS = 7; // v16.0：近 7 日成功率窗口
 
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const quick = args.includes('--quick');
+
+// v16.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
+function appendHistory(results) {
+  const date = new Date().toISOString().slice(0, 10);
+  const lines = results.map(r => JSON.stringify({ date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason }));
+  if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
+  fs.appendFileSync(HIST_FILE, lines.join('\n') + '\n');
+  return date;
+}
+
+// v16.0：按 URL 聚合近 HISTORY_DAYS 日成功率（每天取最后一次结果）
+function aggregateHistory() {
+  if (!fs.existsSync(HIST_FILE)) return {};
+  const cutoffMs = Date.now() - HISTORY_DAYS * 864e5;
+  const byUrl = {}; // url -> { date: ok }
+  for (const line of fs.readFileSync(HIST_FILE, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    let r;
+    try { r = JSON.parse(line); } catch (e) { continue; }
+    const t = Date.parse(r.date + 'T00:00:00Z');
+    if (!t || t < cutoffMs) continue;
+    const u = r.url;
+    byUrl[u] = byUrl[u] || {};
+    byUrl[u][r.date] = !!r.ok; // 同日多次取最后一次
+  }
+  const stats = {};
+  for (const [url, days] of Object.entries(byUrl)) {
+    const dates = Object.keys(days).sort();
+    let ok = 0, fail = 0;
+    for (const d of dates) { if (days[d]) ok++; else fail++; }
+    // 连续失败天数：从最新一天往前数连续失败
+    let streak = 0;
+    for (let i = dates.length - 1; i >= 0; i--) {
+      if (days[dates[i]]) break;
+      streak++;
+    }
+    stats[url] = { days: dates.length, ok, fail, streak, rate: dates.length ? (ok / dates.length) : 1 };
+  }
+  return stats;
+}
 
 // ---- 静态提取端点（与 lx-source.js 常量区一致的正则）----
 function extractEndpoints(src) {
@@ -72,21 +116,26 @@ function probeUrl(url, timeoutMs = 4000) {
   }
 
   // 健康表写回 README_HEALTH.md（CI 每日刷新；v13.1 写回目标，README 引用它）
+  // v16.0：追加本次结果到历史 + 近7日成功率列
+  const today = appendHistory(results);
+  const hist = aggregateHistory();
   const lines = [];
   lines.push('# 端点健康表（自动巡检）');
   lines.push('');
   lines.push(`> 由 \`scripts/probe.js\` 自动生成 · 更新于 ${new Date().toISOString()} · 判定规则：2xx/3xx 或 Range 206 为可用（4xx/5xx/超时/域名不可解析为失败）`);
   lines.push('');
-  lines.push(`共提取 ${results.length} 个端点，可用 ${okCount} 个。`);
+  lines.push(`共提取 ${results.length} 个端点，可用 ${okCount} 个；近 ${HISTORY_DAYS} 日成功率基于 \`docs/probe-history.jsonl\` 历史（${today} 追加）。`);
   lines.push('');
-  lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 说明 |');
-  lines.push('|---|---|---|---|---|');
+  lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 近7日成功率 | 说明 |');
+  lines.push('|---|---|---|---|---|---|');
   for (const r of results) {
     const tag = r.ok ? '✅ 可用' : '❌ 失败';
     const reason = r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason;
-    lines.push(`| \`${r.url.slice(0, 80)}${r.url.length > 80 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${reason} |`);
+    const h = hist[r.url];
+    const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
+    lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
-  console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用`);
+  console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);
   if (okCount < results.length) { console.log('存在失败端点，详见健康表'); process.exit(2); }
 })();
