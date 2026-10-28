@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v13.4 迭代就绪版**（`lx-source.js` 内 `@version 13.4`） |
+| 当前版本 | **v14.3 探测巡检增强版**（`lx-source.js` 内 `@version 14.3`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,11 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v13.4**（当前） | 迭代就绪版：配置化（ikun 卡密 / 聆川密钥入 `USER_CONFIG`，开配置即用、默认关闭）；音质映射表收敛（`QUALITY_TO_X` 统一 magic number，官方"源内映射"模型）；健康探测结果并入竞速统计；决策日志开关（`LOG_DEBUG`） |
+| **v14.3**（当前） | 探测巡检增强版：分级探测（核心源每轮 / 次要源每 3 轮一探）+ 失效源休眠复活（连续 3 轮失败休眠、每 10 轮复活试探、探测通过自动回归） |
+| **v14.2** | 竞速匹配校验版：verified 源（内部 songInfoMatch 校验）结果优先，未校验源首个成功等 600ms 窗口防"快但错歌"抢答 |
+| **v14.1** | 健康权重自学习版：健康评分 = 真实样本成功率（置信度收缩）+ 均时惩罚 + 连续失败惩罚；探测样本独立计数低权重参考，真实请求主导排序 |
+| **v14.0** | 失败原因结构化版：聚合错误携带 `code`（代表码）+ `detail` 数组（每项 `{source, quality, code, reason}`），message 文本保持兼容，供 App 端展示/统计 |
+| **v13.4** | 迭代就绪版：配置化（ikun 卡密 / 聆川密钥入 `USER_CONFIG`，开配置即用、默认关闭）；音质映射表收敛（`QUALITY_TO_X` 统一 magic number，官方"源内映射"模型）；健康探测结果并入竞速统计；决策日志开关（`LOG_DEBUG`） |
 | v13.0~13.3 | 工程化：`test/lx-source-smoke-test.js` 冒烟固化（mock lx 宿主 8 组用例）+ CI 自动 `node --check`+冒烟（push 触发）；`scripts/probe.js` 端点巡检 + 每日 CI 写回健康表；协作规范进 AGENTS.md（迭代协议）；updateAlert 发版通知 |
 | v12.1~12.3 | 可用性：失败缓存差异化（404→1h / 410→1min / 网络错误不缓存）+ 失败码统一提取；mg/tx 恢复评估（2026-10-28 实测 mg 上游域名 200 但接口 502=出口 IP 被咪咕限、溯音QQ 仍 -403，均保持关闭）；debug 级源级决策日志 |
 | **v12.0** | 星海高音质版：xinghaiBackend 解除 128k 限制接入 kw flac/320k（E10 实测：四档 code 200、URL 均 Range 206、魔数正确、码率吻合、ID3 歌名对应 songmid）+ URL http→https 升级（实测 https 206 可播）；kw 高音质实现双源冗余（D3 修复） |
