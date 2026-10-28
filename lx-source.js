@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 25.2 健康面板使用中分组版
+ * @description v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 25.3 音源健康审计修复版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -288,13 +288,16 @@ function buildProbeConfig() {
 function tierShouldProbe(round, tier, sourceId) {
   const interval = tier === "secondary" ? PROBE_TIER_SECONDARY_INTERVAL : PROBE_TIER_CORE_INTERVAL;
   if (round % interval !== 0) return false;
-  // v19.2：探测频率自适应——连续通过≥5轮的源降频为每2轮一探（健康源无需高频验证，省上游外呼）
-  if (sourceId && (probeState.passCount[sourceId] || 0) >= 5 && round % 2 !== 0) return false;
+  // v19.2/v25.3：探测频率自适应——连续通过≥5轮的源降频为每2轮一探（健康源无需高频验证，省上游外呼）
+  // v25.3 修复：改用 passStreak（连续通过轮数）判定——旧实现用 passCount，但 passCount 到 2 即清零，降频从未生效
+  if (sourceId && (probeState.passStreak[sourceId] || 0) >= 5 && round % 2 !== 0) return false;
   return true;
 }
 
 const probeState = {
   passCount: {},
+  // v25.3：连续通过轮数（不清零的长期连胜，用于探测降频；passCount 到 PROBE_PASS_REQUIRED 会清零，无法承载降频判断）
+  passStreak: {},
   failCount: {},
   // v14.3：失效休眠状态——deadCount 连续失败累计；sleeping=true 进入休眠；sleepRound 记录休眠起点轮
   deadCount: {},
@@ -362,6 +365,7 @@ function applyProbeResult(id, usable) {
   if (usable) {
     probeState.failCount[id] = 0;
     probeState.passCount[id] = (probeState.passCount[id] || 0) + 1;
+    probeState.passStreak[id] = (probeState.passStreak[id] || 0) + 1; // v25.3：连胜累计（降频判断用）
     // v14.3：探测通过即复活（清休眠），避免复活试探成功后被下一次抖动打回休眠
     delete probeState.deadCount[id];
     delete probeState.sleeping[id];
@@ -376,6 +380,7 @@ function applyProbeResult(id, usable) {
     }
   } else {
     probeState.passCount[id] = 0;
+    probeState.passStreak[id] = 0; // v25.3：连胜中断
     probeState.failCount[id] = (probeState.failCount[id] || 0) + 1;
     if (probeState.failCount[id] >= PROBE_FAIL_REQUIRED) {
       const wasOn = runtimeToggles[id] === true;
@@ -387,10 +392,16 @@ function applyProbeResult(id, usable) {
     }
     // v14.3：连续失败累计 → 休眠（不再每轮空打无效请求）
     probeState.deadCount[id] = (probeState.deadCount[id] || 0) + 1;
-    if (probeState.deadCount[id] >= PROBE_SLEEP_AFTER_DEAD && !probeState.sleeping[id]) {
-      probeState.sleeping[id] = true;
-      probeState.sleepRound[id] = globalThis.__probeRound || 0;
-      logWarn(`健康探测: [${id}] 连续${PROBE_SLEEP_AFTER_DEAD}轮失败，进入休眠(每${PROBE_WAKE_EVERY_ROUND}轮复活试探一次)`);
+    if (probeState.deadCount[id] >= PROBE_SLEEP_AFTER_DEAD) {
+      if (!probeState.sleeping[id]) {
+        probeState.sleeping[id] = true;
+        probeState.sleepRound[id] = globalThis.__probeRound || 0;
+        logWarn(`健康探测: [${id}] 连续${PROBE_SLEEP_AFTER_DEAD}轮失败，进入休眠(每${PROBE_WAKE_EVERY_ROUND}轮复活试探一次)`);
+      } else {
+        // v25.3：休眠中复活试探失败 → 重置休眠起点轮。
+        // 旧实现不更新 sleepRound，round-since 恒≥10 → 复活轮失败后每轮都重探（失去休眠意义、白耗外呼）
+        probeState.sleepRound[id] = globalThis.__probeRound || 0;
+      }
     }
   }
 }
@@ -398,6 +409,7 @@ function applyProbeResult(id, usable) {
 async function runHealthCheck() {
   if (probeState.running) return;
   probeState.running = true;
+  try {  // v25.3：try/finally——构建配置等任何异常都不会把 running 锁死（否则探测链永久停摆）
   // v11.11：轮次先递增再构建配置，确保探测歌曲池轮换从首轮生效
   const round = (globalThis.__probeRound = (globalThis.__probeRound || 0) + 1);
   const probeConfig = buildProbeConfig();
@@ -411,7 +423,11 @@ async function runHealthCheck() {
   }));
   const active = Object.keys(runtimeToggles).filter(k => runtimeToggles[k]);
   logInfo(`健康探测: 本轮完成，当前自动启用: ${active.join(", ")}`);
-  probeState.running = false;
+  } catch (e) {
+    logWarn(`健康探测异常: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    probeState.running = false; // v25.3：异常也释放探测锁
+  }
 }
 
 function startHealthCheck() {
@@ -624,15 +640,16 @@ function getSourceStats(sourceId) {
 // v14.1：源健康权重自学习——健康评分 = 真实样本成功率(置信度收缩) − 均时惩罚 − 连续失败惩罚
 // 探测样本仅作低权重参考（环境因素多，权重 0.3）；真实请求样本主导
 const HEALTH_PRIOR_K = 4;      // 置信度收缩伪计数（样本少时成功率向 0.5 收缩，防止"1 次成功=满分"）
-const HEALTH_PROBE_WEIGHT = 0.3; // 探测样本并入权重（低）
 const HEALTH_TIME_PENALTY = 0.5; // 均时惩罚系数（归一化到 5000ms）
 const HEALTH_STREAK_STEP = 0.08; // 每 1 次连续失败扣分
 const HEALTH_STREAK_CAP = 0.5;   // 连续失败惩罚上限
 function computeHealthScore(sourceId) {
   const b = getBreaker(sourceId);
-  // v17.0：有效真实请求 = 真实请求 - 版权/业务失败（无版权歌不惩罚健康分）
-  const realReq = Math.max(b.totalRequests - (b.probeRequests || 0) - (b.copyrightFail || 0), 0);
-  const realSuccess = Math.max(b.totalSuccess - (b.probeSuccess || 0), 0);
+  // v25.3：有效真实请求 = 真实请求 - 版权/业务失败（无版权歌不惩罚健康分）
+  // 修复：probe* 为独立计数(recordProbeResult 单独记账)，totalRequests/totalSuccess 不含探测——
+  // 旧实现做减法会把真实样本削掉(探测多时 realReq 归零、成功率退回 0.5)，健康分系统性偏低且与面板成功率口径不一致
+  const realReq = Math.max(b.totalRequests - (b.copyrightFail || 0), 0);
+  const realSuccess = b.totalSuccess;
   // 真实样本成功率（置信度收缩）
   const rateReal = realReq === 0 ? 0.5 : (realSuccess + HEALTH_PRIOR_K * 0.5) / (realReq + HEALTH_PRIOR_K);
   // 探测样本参考（纯探测期：无真实样本时用探测成功率收缩）
@@ -642,7 +659,7 @@ function computeHealthScore(sourceId) {
   const rate = realReq > 0 ? rateReal : rateProbe; // 真实样本存在时主导，否则退回探测参考
   // 均时惩罚：真实样本均时优先，纯探测用探测均时；无样本按 9999 最劣
   const avgTime = realSuccess > 0
-    ? (b.totalTime - (b.probeTime || 0)) / realSuccess
+    ? b.totalTime / realSuccess   // v25.3：totalTime 只计真实成功耗时，不再减 probeTime（同 S1 口径修复）
     : (probeSuccess > 0 ? (b.probeTime || 0) / probeSuccess : 9999);
   const timePenalty = Math.min(avgTime / 5000, 1) * HEALTH_TIME_PENALTY;
   // 连续失败惩罚（熔断阈值内递增；已熔断由 canExecute 挡链，此处仅影响参考分）
@@ -1633,7 +1650,11 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     throw new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
   }
   if (!throttleCheck(handler.id)) {
-    throw new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
+    // v25.3：本地并发/限速保护跳过——标记 isThrottleSkip：非上游429，不记限流统计、不污染成功率、
+    // 不触发 30s 退避（旧实现误记 recordRateLimit，流量高峰会把源冤枉成"被限"）
+    const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
+    skipErr.isThrottleSkip = true;
+    throw skipErr;
   }
   inflightCount.set(handler.id, (inflightCount.get(handler.id) || 0) + 1);
   reqTimestamps.get(handler.id).push(Date.now());
@@ -1647,7 +1668,10 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
-    inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 1) - 1, 0));
+    // v25.3：本地节流跳过——不记账直接抛出（finally 仍释放并发计数）
+    if (e && e.isThrottleSkip) throw e;
+    // v25.3：删除 catch 里的 inflightCount 递减——finally 已统一释放；
+    // 旧实现 catch+finally 双递减会把并发中其他请求的计数也归零，单源并发保护(2)失效
     // v14.0：失败原因结构化透出——给错误附加源 id，供聚合 detail 关联具体子源
     if (e && typeof e === "object" && !e.sourceId) e.sourceId = handler.id;
     // v12.1：决策日志——区分熔断类错误(网络类)与业务失败(不熔断)
@@ -1946,7 +1970,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v25.2 健康面板使用中分组版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v25.3 音源健康审计修复版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
