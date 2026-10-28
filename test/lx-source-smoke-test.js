@@ -276,7 +276,41 @@ async function test(name, fn) {
   assert.ok(!mod.probeState.deadCount[sleepId], '探测通过应清失败累计');
   globalThis.__probeRound = oldRound;
 
-  console.log('\n冒烟测试完成：12 组用例');
+  console.log('[T13] v15.0 歌词/封面透出：wy lyric/pic + kw pic，不支持平台安全拒绝');
+  // 13a：wy 歌词（网易云公开接口，返回带时间标签歌词）
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('music.163.com/api/song/lyric')) return json({ lrc: { lyric: '[00:00.000] 测试歌词第一行\n[00:05.000] 测试歌词第二行' }, tlyric: { lyric: '[00:00.000] Test Line 1' } });
+    return { error: 'ECONNREFUSED' };
+  };
+  const wySong = { name: '测试歌', singer: '歌手', duration: 200000, songmid: '2652820720' };
+  const lyricInfo = await requestHandler({ action: 'lyric', source: 'wy', info: { type: 'flac', musicInfo: wySong } });
+  assert.ok(lyricInfo && typeof lyricInfo.lyric === 'string' && /\[\d\d:\d\d\.\d\d\d\]/.test(lyricInfo.lyric), `歌词应带时间标签，实际=${JSON.stringify(lyricInfo).slice(0, 80)}`);
+  assert.ok(typeof lyricInfo.tlyric === 'string' && lyricInfo.tlyric.includes('Test Line'), '应返回翻译歌词');
+  // 13b：wy 封面（detail 接口 picUrl → https 字符串）
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('music.163.com/api/song/detail')) return json({ songs: [{ picUrl: 'https://p2.music.126.net/ab12cd/cover.jpg' }] });
+    return { error: 'ECONNREFUSED' };
+  };
+  const picUrl = await requestHandler({ action: 'pic', source: 'wy', info: { type: 'flac', musicInfo: wySong } });
+  assert.ok(typeof picUrl === 'string' && /^https:/.test(picUrl), `封面应返回 https URL，实际=${picUrl}`);
+  // 13c：kw 封面（搜索接口单引号 abslist → hts_MVPIC）
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('search.kuwo.cn')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: "{'abslist':[{'NAME':'测试歌','MP3RID':'MP3_123','hts_MVPIC':'https://img2.kuwo.cn/ab12/cd.jpg'}]}" };
+    return { error: 'ECONNREFUSED' };
+  };
+  const kwSong = { name: '测试歌', singer: '歌手', duration: 200000, songmid: '228908' };
+  const kwPic = await requestHandler({ action: 'pic', source: 'kw', info: { type: 'flac', musicInfo: kwSong } });
+  assert.ok(typeof kwPic === 'string' && kwPic.includes('img2.kuwo.cn'), `kw 封面应返回 hts_MVPIC，实际=${kwPic}`);
+  // 13d：不支持平台安全拒绝（tx lyric → NOT_FOUND）
+  resetMock();
+  let txRejected = false;
+  try { await requestHandler({ action: 'lyric', source: 'tx', info: { type: 'flac', musicInfo: wySong } }); } catch (e) { txRejected = true; }
+  assert.ok(txRejected, 'tx 歌词无接口应 reject（App 走内置源兜底）');
+
+  console.log('\n冒烟测试完成：13 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

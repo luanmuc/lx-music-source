@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v14.3探测巡检增强：分级探测(core每轮/secondary每3轮一探)+失效源休眠复活(连续3轮失败休眠，每10轮复活试探，探测通过即回归)；v14.2竞速匹配校验(verified源优先)；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 14.3 探测巡检增强版
+ * @description v15.0歌词/封面透出：App fork已支持lyric/pic action(声明即注册)——wy歌词+封面(网易云公开接口实测可用)、kw封面(搜索hts_MVPIC实测可用)，失败App自动走内置源兜底；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 15.0 歌词封面透出版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -77,6 +77,9 @@ const LINGCHUAN_API = "https://api.lingchuan.com/v1";
 const XINGHAI_BACKEND_API = "https://yy.zddyr.top/lx/api/";
 // 网易云官方 outer 直连（免费歌302→真实mp3；VIP/无版权歌404自动跳过；固定128k）
 const WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
+// v15.0：歌词/封面接口（实测：网易云公开 lyric/detail 接口可用；酷我仅封面 hts_MVPIC 可用，歌词无稳定接口）
+const WY_LYRIC_API = "https://music.163.com/api/song/lyric";
+const WY_DETAIL_API = "https://music.163.com/api/song/detail";
 // 酷我官方直连（自研：搜索r.s→rid→convert_url，固定128k真实mp3，无第三方）
 const KUWO_SEARCH_API = "http://search.kuwo.cn/r.s";
 const KUWO_CONVERT_API = "http://antiserver.kuwo.cn/anti.s";
@@ -849,10 +852,72 @@ async function kuwoOfficialSearch(keyword, rn = 10) {
   return items;
 }
 
+/* ============================================================
+ * v15.0：歌词/封面透出（App fork 已支持 lyric/pic action，音源声明即注册）
+ * 实证：网易云公开 lyric(带时间标签) / detail(picUrl) 接口可用；酷我搜索 abslist 含 hts_MVPIC 封面；
+ *      酷我歌词无稳定公开接口、tx/kg/mg 无签名接口 → 对应平台不声明，App 自动走内置源兜底
+ * ============================================================ */
+
+// 酷我封面搜索（单引号 Python repr → 清洗 JSON，取 abslist[0].hts_MVPIC）
+async function kuwoPicSearch(keyword) {
+  const url = `${KUWO_SEARCH_API}?client=kt&all=${encodeURIComponent(keyword)}&pn=0&rn=1&ft=music&rformat=json&encoding=utf8`;
+  const res = await httpRequestWithRetry(url, {
+    method: "GET",
+    headers: { "User-Agent": getMobileUserAgent() },
+    timeout: TIMEOUT_CONFIG.search
+  });
+  const raw = typeof res.body === "string" ? res.body : String(res.body || "");
+  const cleaned = raw.replace(/'/g, '"');
+  try {
+    const parsed = JSON.parse(cleaned);
+    const item = parsed?.abslist?.[0];
+    if (item) {
+      // hts_MVPIC 为完整 https 封面；MVPIC 为短路径需拼 img2.kuwo.cn 前缀
+      const pic = item.hts_MVPIC || (item.MVPIC ? `https://img2.kuwo.cn/${item.MVPIC}` : null);
+      if (typeof pic === "string" && /^https?:/.test(pic)) return pic;
+    }
+  } catch (e) { /* 解析失败走 NOT_FOUND */ }
+  throw new Error(`${ERROR_CODES.NOT_FOUND}: 酷我封面获取失败`);
+}
+
+// 歌词透出：仅 wy（网易云公开接口），返回 {lyric, tlyric, rlyric}（App verifyLyricInfo 校验 lyric 非空且≤51200）
+async function getLyricForPlatform(platform, songInfo) {
+  if (!songInfo || typeof songInfo !== "object") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的歌曲信息`);
+  if (platform !== "wy") throw new Error(`${ERROR_CODES.NOT_FOUND}: ${platform} 平台暂无稳定歌词接口`);
+  const id = songInfo?.songmid || songInfo?.id;
+  if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 网易云歌词缺少歌曲ID`);
+  const res = await httpGet(WY_LYRIC_API, { id: String(id), lv: 1, kv: 1, tv: -1 }, 'parse');
+  const lyric = res?.lrc?.lyric;
+  if (typeof lyric !== "string" || !lyric.length) throw new Error(`${ERROR_CODES.NOT_FOUND}: 网易云歌词不存在或需VIP`);
+  return {
+    lyric,
+    tlyric: (typeof res?.tlyric?.lyric === "string" && res.tlyric.lyric.length) ? res.tlyric.lyric : null,
+    rlyric: null
+  };
+}
+
+// 封面透出：wy 用 detail 接口 picUrl；kw 用搜索接口 hts_MVPIC；返回 https 字符串 URL（App 校验）
+async function getPicForPlatform(platform, songInfo) {
+  if (!songInfo || typeof songInfo !== "object") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的歌曲信息`);
+  if (platform === "wy") {
+    const id = songInfo?.songmid || songInfo?.id;
+    if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 网易云封面缺少歌曲ID`);
+    const res = await httpGet(WY_DETAIL_API, { id: String(id), ids: `[${String(id)}]` }, 'parse');
+    const picUrl = res?.songs?.[0]?.picUrl;
+    if (typeof picUrl !== "string" || !/^https?:/.test(picUrl)) throw new Error(`${ERROR_CODES.NOT_FOUND}: 网易云封面获取失败`);
+    return picUrl;
+  }
+  if (platform === "kw") {
+    const keyword = songInfo?.name ? `${songInfo.name} ${songInfo?.singer || ""}`.trim() : "";
+    if (!keyword) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 酷我封面缺少歌曲名`);
+    return kuwoPicSearch(keyword);
+  }
+  throw new Error(`${ERROR_CODES.NOT_FOUND}: ${platform} 平台暂无稳定封面接口`);
+}
+
 async function kuwoOfficialConvert(rid) {
   if (!rid) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 酷我官方缺少rid`);
-  const url = `${KUWO_CONVERT_API}?type=convert_url&rid=${encodeURIComponent(rid)}&format=mp3&response=url`;
-  const res = await httpRequestWithRetry(url, {
+  const url = `${KUWO_CONVERT_API}?type=convert_url&rid=${encodeURIComponent(rid)}&format=mp3&response=url`;  const res = await httpRequestWithRetry(url, {
     method: "GET",
     headers: { "User-Agent": getMobileUserAgent() },
     timeout: TIMEOUT_CONFIG.parse
@@ -1517,15 +1582,28 @@ const PLATFORM_NAMES = {
   wy: "网易云音乐", tx: "QQ音乐", kw: "酷我音乐", kg: "酷狗音乐", mg: "咪咕音乐"
 };
 Object.keys(PLATFORM_QUALITIES).forEach(platform => {
+  // v15.0：歌词/封面按平台真实能力声明（App fork 声明即注册 getLyric/getPic）——
+  // wy: 歌词+封面（网易云公开接口实测可用）；kw: 封面（搜索 hts_MVPIC 实测可用）；
+  // tx/kg/mg: 无稳定接口不声明，App 自动走内置源兜底
+  const actions = ["musicUrl"];
+  if (platform === "wy") actions.push("lyric", "pic");
+  else if (platform === "kw") actions.push("pic");
   sourceConfig[platform] = {
     name: PLATFORM_NAMES[platform],
     type: "music",
-    actions: ["musicUrl"],
+    actions,
     qualitys: REPORT_QUALITIES[platform] || ["128k"] // v11.8 P0-6：按真实能力裁剪
   };
 });
 
 on(EVENT_NAMES.request, ({ action, source, info }) => {
+  // v15.0：歌词/封面 action（App fork userApi 已支持；失败 App 自动走内置源兜底）
+  if (action === "lyric") {
+    return getLyricForPlatform(source, info?.musicInfo).catch(err => Promise.reject(err));
+  }
+  if (action === "pic") {
+    return getPicForPlatform(source, info?.musicInfo).catch(err => Promise.reject(err));
+  }
   if (action !== "musicUrl") {
     return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: action not support`));
   }
