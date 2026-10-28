@@ -27,8 +27,11 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
-      - name: L1 冒烟测试（mock lx 宿主，15 组用例）
+      - name: L1 冒烟测试（mock lx 宿主，24 组用例）
         run: node test/lx-source-smoke-test.js
+      # v23.1：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
+      - name: L2 发布前自检门（版本串/action声明/文档同步）
+        run: node scripts/self-check.js
       - name: 巡检脚本语法
         run: node --check scripts/probe.js
 
