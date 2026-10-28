@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v14.1源健康权重自学习：健康评分=真实样本成功率(置信度收缩)+均时惩罚+连续失败惩罚，探测样本独立计数低权重参考(0.3)，真实请求主导排序；v14.0失败原因结构化透出(detail数组)；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 14.1 健康权重自学习版
+ * @description v14.2竞速结果匹配校验：verified源(内部songInfoMatch)结果优先，未校验源首个成功等600ms窗口防'快但错歌'抢答；v14.1源健康权重自学习(置信度收缩+连续失败惩罚，探测低权重)；v14.0失败原因结构化透出(detail数组)；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 14.2 竞速匹配校验版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -30,6 +30,7 @@ const BREAKER_THRESHOLD = 3;            // 连续失败熔断阈值
 const BREAKER_COOLDOWN_MS = 180000;     // 熔断冷却 3分钟
 const RETRY_TIMES = 1;                  // 网络错误重试次数(v11.8:2→1，避免重试放大)
 const RACE_OVERALL_TIMEOUT_MS = 6000;   // fallbackRace 整体超时(v11.8新增)
+const RACE_MATCH_WAIT_MS = 600;         // v14.2：未校验源首个成功后的等待窗口——给已验证源(内部做songInfoMatch)机会，防"快但错歌"抢答
 
 const ERROR_CODES = {
   NETWORK_TIMEOUT: 'NETWORK_TIMEOUT',
@@ -1152,8 +1153,8 @@ const SOURCE_HANDLERS = {
   lingchuan: { id: "lingchuan", name: "聆川", fn: lingchuanGetUrl, maxQuality: "320k" },
   suyinQQ: { id: "suyinQQ", name: "溯音QQ", fn: (platform, songId, quality, songInfo) => suyinGetUrl("tx", songId, quality, songInfo), maxQuality: "flac" },
   suyin163: { id: "suyin163", name: "溯音163", fn: (platform, songId, quality, songInfo) => suyinGetUrl("wy", songId, quality, songInfo), maxQuality: "128k" },
-  suyinKuwo: { id: "suyinKuwo", name: "溯音酷我", fn: (platform, songId, quality, songInfo) => suyinKuwoGetUrl(songInfo, quality), maxQuality: "flac" },
-  suyinMigu: { id: "suyinMigu", name: "溯音咪咕", fn: (platform, songId, quality, songInfo) => suyinGetUrl("mg", songId, quality, songInfo), maxQuality: "flac" },
+  suyinKuwo: { id: "suyinKuwo", name: "溯音酷我", fn: (platform, songId, quality, songInfo) => suyinKuwoGetUrl(songInfo, quality), maxQuality: "flac", verified: true }, // v14.2：内部做 songInfoMatch 校验，竞速优先
+  suyinMigu: { id: "suyinMigu", name: "溯音咪咕", fn: (platform, songId, quality, songInfo) => suyinGetUrl("mg", songId, quality, songInfo), maxQuality: "flac", verified: true }, // v14.2：内部做 songInfoMatch 校验，竞速优先
   changqingVip: { id: "changqingVip", name: "长青kw", fn: changqingGetUrl, maxQuality: "128k" },
   nianxinVip: { id: "nianxinVip", name: "念心kw", fn: nianxinGetUrl, maxQuality: "128k" }
 };
@@ -1210,14 +1211,44 @@ function sortChainByHealth(chain) {
 }
 
 function raceFirst(promises) {
+  // v14.2：校验感知竞速——resolve 值带 {verified, url}；verified 源(内部 songInfoMatch 校验)结果优先返回；
+  // 未校验源首个成功仅作候选，等 RACE_MATCH_WAIT_MS 窗口内是否有 verified 源成功（错歌校验更可信），超时后返回候选
   return new Promise((resolve, reject) => {
     let remaining = promises.length;
     const errs = [];
+    let candidate = null;
+    let settled = false;
+    let waiter = null;
+    const settle = (val) => {
+      if (settled) return;
+      settled = true;
+      if (waiter) clearInterval(waiter);
+      resolve(val);
+    };
     for (const p of promises) {
-      Promise.resolve(p).then(resolve, e => {
-        errs.push(e);
-        if (--remaining === 0) reject({ allFailed: true, errors: errs }); // v12.1：透出全部失败错误供差异化决策
-      });
+      Promise.resolve(p).then(
+        (res) => {
+          if (settled) return;
+          const item = (res && typeof res === "object" && res.url) ? res : { verified: false, url: res };
+          if (item.verified) return settle(item.url);
+          if (!candidate) {
+            candidate = item;
+            const deadline = Date.now() + RACE_MATCH_WAIT_MS;
+            waiter = setInterval(() => {
+              if (!settled && Date.now() >= deadline) settle(candidate.url);
+            }, 40);
+          }
+        },
+        (e) => {
+          errs.push(e);
+          if (--remaining === 0) {
+            if (settled) return;
+            settled = true;
+            if (waiter) clearInterval(waiter);
+            reject({ allFailed: true, errors: errs });
+          }
+        }
+      );
     }
   });
 }
@@ -1290,7 +1321,7 @@ async function fallbackRace(chain, platform, songInfo, quality) {
   });
   try {
     const winner = await Promise.race([
-      raceFirst(firstBatch.map(h => wrapExecute(h, platform, songInfo, quality))),
+      raceFirst(firstBatch.map(h => wrapExecute(h, platform, songInfo, quality).then(url => ({ verified: !!h.verified, url })))),
       overallTimeout
     ]);
     clearTimeout(timeoutHandle);

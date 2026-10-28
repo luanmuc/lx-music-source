@@ -43,7 +43,7 @@ function setMockLx() {
       setTimeout(() => {
         if (route.error) return cb(new Error(route.error), null);
         cb(null, { statusCode: route.statusCode, headers: route.headers || {}, body: route.body ?? '', url: u });
-      }, 2);
+      }, route.delay || 2);
     },
     on(name, handler) { if (name === 'request') requestHandler = handler; },
     send(name, payload) { sentEvents.push({ name, payload }); },
@@ -223,7 +223,38 @@ async function test(name, fn) {
   assert.strictEqual(d.totalRequests, 0, '探测样本不应计入 totalRequests');
   assert.strictEqual(d.totalSuccess, 0, '探测样本不应计入 totalSuccess');
 
-  console.log('\n冒烟测试完成：10 组用例');
+  console.log('[T11] v14.2 竞速结果匹配校验：verified 源优先，未校验源不抢答');
+  // 恢复 T8/T9 熔断的源（180s 冷却无法等待，直接重置状态）
+  for (const id of ['suyinKuwo', 'xinghaiBackend', 'kuwoOfficial', 'changqingVip', 'nianxinVip', 'ikun', 'gdWy', 'suyin163', 'wyOuter', 'huibq', 'lingchuan']) {
+    const b = mod.getBreaker(id);
+    b.state = 'closed'; b.failureCount = 0; b.lastFailureTime = 0;
+  }
+  const json = (body) => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body });
+  // 11a：星海(未verified)快 2ms 先返回，溯音酷我(verified)慢 80ms → 应等 verified 源，返回其 URL
+  // （溯音酷我内部 songInfoMatch 校验要求响应带 song/singer/duration 字段）
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('zddyr.top')) return { ...json({ code: 200, url: 'https://example.com/xh.flac' }), delay: 2 };
+    if (u.includes('oiapi.net/api/Kuwo')) return { ...json({ data: { url: 'https://example.com/kw.flac', song: '匹配校验测试歌', singer: '未知', duration: 200 } }), delay: 80 };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' }; // CDN Range 探测可播
+    return { error: 'ECONNREFUSED' };
+  };
+  const matchSong = { name: '匹配校验测试歌', singer: '未知', duration: 200000, songmid: 'match-song-1' };
+  const verifiedUrl = await requestUrl('kw', 'flac', matchSong);
+  assert.ok(verifiedUrl.includes('example.com/kw.flac'), `verified 源应优先，实际=${verifiedUrl}`);
+  // 11b：verified 源失败，未校验候选窗口后兜底返回
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('zddyr.top')) return { ...json({ code: 200, url: 'https://example.com/xh.flac' }), delay: 2 };
+    if (u.includes('oiapi.net/api/Kuwo')) return { error: 'ECONNREFUSED' };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    return { error: 'ECONNREFUSED' };
+  };
+  const fallbackSong = { name: '匹配校验兜底歌', singer: '未知', duration: 200000, songmid: 'match-song-2' };
+  const fallbackUrl = await requestUrl('kw', 'flac', fallbackSong);
+  assert.ok(fallbackUrl.includes('example.com/xh.flac'), `未校验候选应兜底返回，实际=${fallbackUrl}`);
+
+  console.log('\n冒烟测试完成：11 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
