@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v15.0歌词/封面透出：App fork已支持lyric/pic action(声明即注册)——wy歌词+封面(网易云公开接口实测可用)、kw封面(搜索hts_MVPIC实测可用)，失败App自动走内置源兜底；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 15.0 歌词封面透出版
+ * @description v15.2健康统计快照：getHealthSnapshot导出各源成功率/均时/熔断状态/健康分(供App健康面板/巡检)；v15.0歌词/封面透出(wy lyric+pic/kw pic，网易云公开接口实测可用)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 15.2 统计快照版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -1253,6 +1253,26 @@ function getPlatformSongId(platform, songInfo) {
   return songInfo?.songmid || songInfo?.id || songInfo?.songId || songInfo?.rid || songInfo?.hash || null;
 }
 
+// v15.2：健康统计快照——供 App 健康面板/巡检消费；返回各源成功率/均时/熔断状态/健康分
+function getHealthSnapshot() {
+  const snapshot = {};
+  for (const id of Object.keys(SOURCE_HANDLERS)) {
+    const h = SOURCE_HANDLERS[id];
+    const stats = getSourceStats(id);
+    const score = computeHealthScore(id);
+    snapshot[id] = {
+      name: h.name,
+      maxQuality: h.maxQuality,
+      enabled: runtimeToggles[id] !== false,
+      successRate: stats.successRate,
+      avgTime: stats.avgTime,
+      state: stats.state,
+      healthScore: Number(score.score.toFixed(3))
+    };
+  }
+  return snapshot;
+}
+
 // ============================================================
 // 第七部分：音源注册表 + 调度（源级音质过滤 + 竞速回退 + 6s整体超时）
 // ============================================================
@@ -1655,6 +1675,8 @@ if (typeof module !== "undefined" && module.exports) {
     applyProbeResult,
     buildProbeConfig,
     probeState,
-    runtimeToggles
+    runtimeToggles,
+    // v15.2：健康统计快照（App 健康面板/巡检消费）
+    getHealthSnapshot
   };
 }

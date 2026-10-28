@@ -310,7 +310,21 @@ async function test(name, fn) {
   try { await requestHandler({ action: 'lyric', source: 'tx', info: { type: 'flac', musicInfo: wySong } }); } catch (e) { txRejected = true; }
   assert.ok(txRejected, 'tx 歌词无接口应 reject（App 走内置源兜底）');
 
-  console.log('\n冒烟测试完成：13 组用例');
+  console.log('[T14] v15.2 健康统计快照：14 源全量 + 字段完整 + 健康分排序可用');
+  const snap = mod.getHealthSnapshot();
+  assert.ok(snap && typeof snap === 'object', '应返回快照对象');
+  assert.ok(Object.keys(snap).length >= 14, `应覆盖全部源，实际${Object.keys(snap).length}个`);
+  for (const id of Object.keys(snap)) {
+    const s = snap[id];
+    assert.ok(typeof s.name === 'string' && s.name.length > 0, `${id} 缺 name`);
+    assert.ok(typeof s.enabled === 'boolean', `${id} 缺 enabled`);
+    assert.ok(typeof s.successRate === 'number', `${id} 缺 successRate`);
+    assert.ok(typeof s.avgTime === 'number', `${id} 缺 avgTime`);
+    assert.ok(['closed', 'open', 'half-open'].includes(s.state), `${id} state 异常: ${s.state}`);
+    assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -2 && s.healthScore <= 1, `${id} healthScore 越界: ${s.healthScore}`);
+  }
+
+  console.log('\n冒烟测试完成：14 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
