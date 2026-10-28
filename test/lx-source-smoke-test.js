@@ -318,10 +318,11 @@ async function test(name, fn) {
     const s = snap[id];
     assert.ok(typeof s.name === 'string' && s.name.length > 0, `${id} 缺 name`);
     assert.ok(typeof s.enabled === 'boolean', `${id} 缺 enabled`);
-    assert.ok(typeof s.successRate === 'number', `${id} 缺 successRate`);
-    assert.ok(typeof s.avgTime === 'number', `${id} 缺 avgTime`);
+    assert.ok(typeof s.successRate === 'number' || s.successRate === null, `${id} 缺 successRate(无样本可为null)`);
+    assert.ok(typeof s.avgTime === 'number' || s.avgTime === null, `${id} 缺 avgTime(无样本可为null)`);
     assert.ok(['closed', 'open', 'half-open'].includes(s.state), `${id} state 异常: ${s.state}`);
     assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -2 && s.healthScore <= 1, `${id} healthScore 越界: ${s.healthScore}`);
+    assert.ok(typeof s.reqCount === 'number' && typeof s.probeCount === 'number', `${id} 缺样本计数`);
   }
 
   console.log('[T15] v16.3 健康 action：request(health) 返回快照对象（App fork 通道可用）');
