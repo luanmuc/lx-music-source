@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 16.2 数据驱动版
+ * @description v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 16.3 App健康面板联动版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -1608,6 +1608,7 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
   const actions = ["musicUrl"];
   if (platform === "wy") actions.push("lyric", "pic");
   else if (platform === "kw") actions.push("pic");
+  actions.push("health"); // v16.3：健康快照 action（App fork 声明即注册 getHealth，与平台无关的聚合查询）
   sourceConfig[platform] = {
     name: PLATFORM_NAMES[platform],
     type: "music",
@@ -1617,6 +1618,10 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
 });
 
 on(EVENT_NAMES.request, ({ action, source, info }) => {
+  // v16.3：健康快照 action（聚合查询，与请求的 source 无关）
+  if (action === "health") {
+    return Promise.resolve(getHealthSnapshot());
+  }
   // v15.0：歌词/封面 action（App fork userApi 已支持；失败 App 自动走内置源兜底）
   if (action === "lyric") {
     return getLyricForPlatform(source, info?.musicInfo).catch(err => Promise.reject(err));
