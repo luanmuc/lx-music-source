@@ -1650,7 +1650,7 @@ send(EVENT_NAMES.inited, {
 if (EVENT_NAMES && EVENT_NAMES.updateAlert && typeof send === "function") {
   try {
     send(EVENT_NAMES.updateAlert, {
-      log: "v13.4 迭代就绪版：失败缓存差异化+探测收敛+决策日志+音质表收敛+配置化；v12.3 起每次发版自动弹更新提示",
+      log: "v16.3 App健康面板联动版：health action（App 设置页「音源健康」面板）+ 多源聚合 + 失败原因结构化 + 健康自愈",
       updateUrl: "https://github.com/luanmuc/lx-music-source/releases"
     });
   } catch (e) {
@@ -1658,7 +1658,7 @@ if (EVENT_NAMES && EVENT_NAMES.updateAlert && typeof send === "function") {
   }
 }
 
-logInfo(`豆包定制聚合音源 v13.4 迭代就绪版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测并入竞速统计；v12.2决策日志(debug级)；v12.3 updateAlert发版通知；v13.3音质映射表收敛；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+日志宿主防御+防错歌加固+健康自愈`);
+logInfo(`豆包定制聚合音源 v16.3 App健康面板联动版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
