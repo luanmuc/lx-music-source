@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v14.0失败原因结构化透出：聚合错误携带code(代表码)+detail数组(每项{source,quality,code,reason})，message文本兼容，供App端展示/统计；v13.4配置化(ikun/聆川密钥入配置区默认关闭)+v13.3音质映射表收敛+v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测并入竞速统计；保留v12.0星海kw高音质双源+v11.13日志宿主防御+v11.12防错歌加固
- * @version 14.0 失败原因结构化版
+ * @description v14.1源健康权重自学习：健康评分=真实样本成功率(置信度收缩)+均时惩罚+连续失败惩罚，探测样本独立计数低权重参考(0.3)，真实请求主导排序；v14.0失败原因结构化透出(detail数组)；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 14.1 健康权重自学习版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -252,12 +252,13 @@ async function probeSingleSource(id, cfg) {
 }
 
 // v12.1：探测结果并入竞速统计（见 probeSingleSource）
+// v14.1：探测样本独立计数（probe*），与真实请求样本分级加权——探测仅作低权重参考，真实请求主导健康评分
 function recordProbeResult(id, usable, avgDuration) {
   const b = getBreaker(id);
-  b.totalRequests++;
+  b.probeRequests = (b.probeRequests || 0) + 1;
   if (usable) {
-    b.totalSuccess++;
-    b.totalTime += (avgDuration || 0);
+    b.probeSuccess = (b.probeSuccess || 0) + 1;
+    b.probeTime = (b.probeTime || 0) + (avgDuration || 0);
   }
 }
 
@@ -408,7 +409,9 @@ const failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
 const breakerMap = new Map();
 function getBreaker(sourceId) {
   if (!breakerMap.has(sourceId)) {
-    breakerMap.set(sourceId, { state: 'closed', failureCount: 0, lastFailureTime: 0, totalRequests: 0, totalSuccess: 0, totalTime: 0 });
+    breakerMap.set(sourceId, { state: 'closed', failureCount: 0, lastFailureTime: 0, totalRequests: 0, totalSuccess: 0, totalTime: 0,
+      // v14.1：探测样本单独计数（与真实请求分级加权，避免探测污染真实成功率）
+      probeRequests: 0, probeSuccess: 0, probeTime: 0 });
   }
   return breakerMap.get(sourceId);
 }
@@ -450,6 +453,35 @@ function getSourceStats(sourceId) {
     avgTime: b.totalSuccess === 0 ? 9999 : b.totalTime / b.totalSuccess,
     state: b.state
   };
+}
+
+// v14.1：源健康权重自学习——健康评分 = 真实样本成功率(置信度收缩) − 均时惩罚 − 连续失败惩罚
+// 探测样本仅作低权重参考（环境因素多，权重 0.3）；真实请求样本主导
+const HEALTH_PRIOR_K = 4;      // 置信度收缩伪计数（样本少时成功率向 0.5 收缩，防止"1 次成功=满分"）
+const HEALTH_PROBE_WEIGHT = 0.3; // 探测样本并入权重（低）
+const HEALTH_TIME_PENALTY = 0.5; // 均时惩罚系数（归一化到 5000ms）
+const HEALTH_STREAK_STEP = 0.08; // 每 1 次连续失败扣分
+const HEALTH_STREAK_CAP = 0.5;   // 连续失败惩罚上限
+function computeHealthScore(sourceId) {
+  const b = getBreaker(sourceId);
+  const realReq = Math.max(b.totalRequests - (b.probeRequests || 0), 0);
+  const realSuccess = Math.max(b.totalSuccess - (b.probeSuccess || 0), 0);
+  // 真实样本成功率（置信度收缩）
+  const rateReal = realReq === 0 ? 0.5 : (realSuccess + HEALTH_PRIOR_K * 0.5) / (realReq + HEALTH_PRIOR_K);
+  // 探测样本参考（纯探测期：无真实样本时用探测成功率收缩）
+  const probeReq = b.probeRequests || 0;
+  const probeSuccess = b.probeSuccess || 0;
+  const rateProbe = probeReq === 0 ? 0.5 : (probeSuccess + HEALTH_PRIOR_K * 0.5) / (probeReq + HEALTH_PRIOR_K);
+  const rate = realReq > 0 ? rateReal : rateProbe; // 真实样本存在时主导，否则退回探测参考
+  // 均时惩罚：真实样本均时优先，纯探测用探测均时；无样本按 9999 最劣
+  const avgTime = realSuccess > 0
+    ? (b.totalTime - (b.probeTime || 0)) / realSuccess
+    : (probeSuccess > 0 ? (b.probeTime || 0) / probeSuccess : 9999);
+  const timePenalty = Math.min(avgTime / 5000, 1) * HEALTH_TIME_PENALTY;
+  // 连续失败惩罚（熔断阈值内递增；已熔断由 canExecute 挡链，此处仅影响参考分）
+  const streakPenalty = Math.min(b.failureCount * HEALTH_STREAK_STEP, HEALTH_STREAK_CAP);
+  const score = rate - timePenalty - streakPenalty;
+  return { score, rate, avgTime, state: b.state };
 }
 
 // ============================================================
@@ -1167,13 +1199,13 @@ function buildSourceChain(platform, quality) {
   return chain;
 }
 
+// v14.1：排序改用综合健康评分（成功率×置信度 + 均时 + 连续失败惩罚）；分数差>0.05 优先，否则按均时兜底
 function sortChainByHealth(chain) {
   return chain.slice().sort((a, b) => {
-    const sa = getSourceStats(a.id);
-    const sb = getSourceStats(b.id);
-    const rateDiff = sb.successRate - sa.successRate;
-    if (Math.abs(rateDiff) > 0.05) return rateDiff;
-    return sa.avgTime - sb.avgTime;
+    const ha = computeHealthScore(a.id);
+    const hb = computeHealthScore(b.id);
+    if (Math.abs(hb.score - ha.score) > 0.05) return hb.score - ha.score;
+    return ha.avgTime - hb.avgTime;
   });
 }
 
@@ -1446,3 +1478,18 @@ logInfo(`豆包定制聚合音源 v13.4 迭代就绪版已加载，上报 ${Obje
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
+
+// v14.1：测试导出块——宿主动态执行无 module，自动跳过；冒烟测试 require 后可断言纯函数
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    computeHealthScore,
+    sortChainByHealth,
+    buildSourceChain,
+    getUrlWithFallback,
+    getBreaker,
+    recordSuccess,
+    recordFailure,
+    ERROR_CODES,
+    QUALITY_PRIORITY
+  };
+}

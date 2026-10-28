@@ -197,7 +197,33 @@ async function test(name, fn) {
   assert.ok(detailErr.detail.every(d => d.code === 'NETWORK_ERROR' || d.code === 'NETWORK_TIMEOUT' || d.code === 'RATE_LIMIT'),
     `netfail 全败 detail.code 应全为网络类码，实际=${detailErr.detail.map(d => d.code).join(',')}`);
 
-  console.log('\n冒烟测试完成：9 组用例');
+  console.log('[T10] v14.1 源健康权重自学习：健康评分排序（真实样本主导 + 探测低权重参考 + 连续失败惩罚）');
+  const mod = require(SRC);
+  const fake = (id) => ({ id, name: id });
+  // srcA：真实 10/10 全成功 快（应排第一）
+  const a = mod.getBreaker('srcA');
+  a.totalRequests = 10; a.totalSuccess = 10; a.totalTime = 2000; a.probeRequests = 0; a.probeSuccess = 0; a.probeTime = 0; a.failureCount = 0;
+  // srcB：真实 5/10 成功率低 慢（应排第三）
+  const b = mod.getBreaker('srcB');
+  b.totalRequests = 10; b.totalSuccess = 5; b.totalTime = 20000; b.probeRequests = 0; b.probeSuccess = 0; b.probeTime = 0; b.failureCount = 0;
+  // srcC：真实 2/6 + 连续失败 3 次（惩罚后应排第四）
+  const c = mod.getBreaker('srcC');
+  c.totalRequests = 6; c.totalSuccess = 2; c.totalTime = 4000; c.probeRequests = 0; c.probeSuccess = 0; c.probeTime = 0; c.failureCount = 3;
+  // srcD：仅探测样本 4/4（低权重参考，应介于 A 与 B 之间）
+  const d = mod.getBreaker('srcD');
+  d.totalRequests = 0; d.totalSuccess = 0; d.totalTime = 0; d.probeRequests = 4; d.probeSuccess = 4; d.probeTime = 1200; d.failureCount = 0;
+  const order = mod.sortChainByHealth([fake('srcB'), fake('srcC'), fake('srcD'), fake('srcA')]);
+  assert.deepStrictEqual(order.map(h => h.id), ['srcA', 'srcD', 'srcB', 'srcC'], `健康排序异常: ${order.map(h => h.id).join(',')}`);
+  // 连续失败惩罚生效：清空 srcC 失败计数后分数应上升
+  const scoreWithStreak = mod.computeHealthScore('srcC').score;
+  c.failureCount = 0;
+  const scoreNoStreak = mod.computeHealthScore('srcC').score;
+  assert.ok(scoreNoStreak > scoreWithStreak, `连续失败惩罚应降低分数(${scoreWithStreak}→${scoreNoStreak})`);
+  // 探测样本不进入 total 统计（不污染真实成功率）
+  assert.strictEqual(d.totalRequests, 0, '探测样本不应计入 totalRequests');
+  assert.strictEqual(d.totalSuccess, 0, '探测样本不应计入 totalSuccess');
+
+  console.log('\n冒烟测试完成：10 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
