@@ -324,7 +324,14 @@ async function test(name, fn) {
     assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -2 && s.healthScore <= 1, `${id} healthScore 越界: ${s.healthScore}`);
   }
 
-  console.log('\n冒烟测试完成：14 组用例');
+  console.log('[T15] v16.3 健康 action：request(health) 返回快照对象（App fork 通道可用）');
+  const healthViaAction = await requestHandler({ action: 'health', source: 'wy', info: {} });
+  assert.ok(healthViaAction && typeof healthViaAction === 'object', 'health action 应返回对象');
+  assert.ok(Object.keys(healthViaAction).length >= 14, `health action 应覆盖全部源，实际${Object.keys(healthViaAction).length}个`);
+  const firstHealth = healthViaAction[Object.keys(healthViaAction)[0]];
+  assert.ok(firstHealth && typeof firstHealth.healthScore === 'number', 'health action 应含 healthScore');
+
+  console.log('\n冒烟测试完成：15 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
