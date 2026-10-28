@@ -491,7 +491,23 @@ async function test(name, fn) {
   assert.ok(openCount >= 1, `breakerThreshold=1 应至少熔断1源，实际 ${openCount}`);
   delete globalThis.__lxSourceConfig;
 
-  console.log('\n冒烟测试完成：24 组用例');
+  console.log('[T25] v24.0 音质协商链：flac→320k→128k 有序降档，实际交付音质记录');
+  // 重载音源清状态（T24 熔断污染）
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole25 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole25; }
+  const modV25 = require(SRC);
+  resetMock();
+  mockRoute = buildRoutes('success');
+  const u24 = await requestUrl('wy', 'flac', { name: '降档测试曲', singer: '测试', duration: 200000, songmid: '555666' });
+  assert.ok(typeof u24 === 'string' && u24.includes('163.mp3'), `flac 不可得时应有序降档至128k源，实际 ${u24}`);
+  const snapV25 = modV25.getHealthSnapshot();
+  const lastQs = Object.values(snapV25).map(x => x.lastQuality).filter(Boolean);
+  assert.ok(lastQs.length >= 1, `应有源记录实际交付音质 lastQuality，实际 ${JSON.stringify(lastQs)}`);
+
+  console.log('\n冒烟测试完成：25 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
