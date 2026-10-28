@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 19.0 健康排序版
+ * @description v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 19.1 调度限速版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -29,7 +29,10 @@ const HTTP_URL_REGEX = /^https?:\/\//i;
 const BREAKER_THRESHOLD = 3;            // 连续失败熔断阈值
 const BREAKER_COOLDOWN_MS = 180000;
 const RATE_LIMIT_BACKOFF_MS = 30000;   // v17.2：429 限流短退避(30s)，不触发熔断
-const RATE_LIMIT_TRIP = 3;            // v17.2：连续限流≥3 次标记"被限"状态     // 熔断冷却 3分钟
+const RATE_LIMIT_TRIP = 3;            // v17.2：连续限流≥3 次标记"被限"状态
+const SOURCE_MAX_CONCURRENCY = 2;    // v19.1：单源最大并发数（超限本轮跳过，防上游过载/风控）
+const RATE_WINDOW_MS = 3000;         // v19.1：滑动窗口限速窗口(3s)
+const RATE_WINDOW_MAX = 5;           // v19.1：窗口内最大请求数（超限本轮跳过）     // 熔断冷却 3分钟
 const RETRY_TIMES = 1;                  // 网络错误重试次数(v11.8:2→1，避免重试放大)
 const RACE_OVERALL_TIMEOUT_MS = 6000;   // fallbackRace 整体超时(v11.8新增)
 const RACE_MATCH_WAIT_MS = 600;         // v14.2：未校验源首个成功后的等待窗口——给已验证源(内部做songInfoMatch)机会，防"快但错歌"抢答
@@ -712,8 +715,16 @@ function qualityToSuyinQQ(quality) {
   return QUALITY_TO_X.suyinQQ[q] ? q : "128k";
 }
 
+// v19.1：UA 池轮换——多套移动 UA 按请求计数器轮换，降低单 UA 被上游风控识别的概率
+const MOBILE_UA_POOL = [
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Mobile Safari/537.36"
+];
+let __uaCounter = 0;
 function getMobileUserAgent() {
-  return "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
+  return MOBILE_UA_POOL[(__uaCounter++ + Math.floor(Date.now() / 60000)) % MOBILE_UA_POOL.length];
 }
 
 // v11.12 (D10)：已移除死代码 getSongId
@@ -1512,11 +1523,34 @@ function raceFirst(promises) {
   });
 }
 
+// v19.1：单源并发计数 + 滑动窗口限速（超限本轮跳过，不阻塞其他源）
+const inflightCount = new Map();
+const reqTimestamps = new Map();
+function throttleCheck(sourceId) {
+  const inflight = inflightCount.get(sourceId) || 0;
+  if (inflight >= SOURCE_MAX_CONCURRENCY) {
+    logDebug(`[限速] ${sourceId} 并发${inflight}≥${SOURCE_MAX_CONCURRENCY}，本轮跳过`);
+    return false;
+  }
+  const now = Date.now();
+  const ts = (reqTimestamps.get(sourceId) || []).filter(t => now - t < RATE_WINDOW_MS);
+  reqTimestamps.set(sourceId, ts);
+  if (ts.length >= RATE_WINDOW_MAX) {
+    logDebug(`[限速] ${sourceId} ${RATE_WINDOW_MS / 1000}s内${ts.length}次≥${RATE_WINDOW_MAX}，本轮跳过`);
+    return false;
+  }
+  return true;
+}
 async function wrapExecute(handler, platform, songInfo, quality) {
   if (!canExecute(handler.id)) {
     logDebug(`[断路器] ${handler.id} 处于${getBreaker(handler.id).state}状态，跳过`);
     throw new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
   }
+  if (!throttleCheck(handler.id)) {
+    throw new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
+  }
+  inflightCount.set(handler.id, (inflightCount.get(handler.id) || 0) + 1);
+  reqTimestamps.get(handler.id).push(Date.now());
   const startTime = Date.now();
   try {
     const url = await handler.fn(platform, getHashOrMid(songInfo), quality, songInfo);
@@ -1525,6 +1559,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
+    inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 1) - 1, 0));
     // v14.0：失败原因结构化透出——给错误附加源 id，供聚合 detail 关联具体子源
     if (e && typeof e === "object" && !e.sourceId) e.sourceId = handler.id;
     // v12.1：决策日志——区分熔断类错误(网络类)与业务失败(不熔断)
@@ -1543,6 +1578,8 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       recordBusinessFail(handler.id, quality);
     }
     throw e;
+  } finally {
+    inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 0) - 1, 0));
   }
 }
 
@@ -1813,7 +1850,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v19.0 健康排序版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v19.1 调度限速版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -1822,6 +1859,8 @@ startHealthCheck();
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     computeHealthScore,
+    // v19.1：UA 池轮换（供测试/巡检验证轮换生效）
+    getMobileUserAgent,
     sortChainByHealth,
     buildSourceChain,
     getUrlWithFallback,

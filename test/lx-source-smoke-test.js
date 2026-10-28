@@ -453,7 +453,13 @@ async function test(name, fn) {
   assert.ok(sortedChain[0].id === 'v19fakeB', `verified 源应优先，实际 ${sortedChain[0].id}`);
   assert.ok(sortedChain.length === 3, '链长度不变');
 
-  console.log('\n冒烟测试完成：21 组用例');
+  console.log('[T22] v19.1 UA池轮换：多次获取应覆盖≥2种移动UA');
+  const uas = new Set();
+  for (let i = 0; i < 8; i++) uas.add(mod.getMobileUserAgent());
+  assert.ok(uas.size >= 2, `UA 池应轮换出至少2种，实际 ${uas.size} 种`);
+  for (const ua of uas) assert.ok(/Mozilla\/5\.0/.test(ua), `UA 应合法: ${ua.slice(0, 30)}`);
+
+  console.log('\n冒烟测试完成：22 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
