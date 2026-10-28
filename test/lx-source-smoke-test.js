@@ -178,7 +178,26 @@ async function test(name, fn) {
   // 说明：kw flac 链 = suyinKuwo+xinghaiBackend（均熔断），应命中"已熔断"
   assert.ok(breakerHit, '网络错误3次后应熔断，实际未命中熔断错误');
 
-  console.log('\n冒烟测试完成：8 组用例');
+  console.log('[T9] v14.0 失败原因结构化透出：聚合错误携带 code + detail 数组');
+  resetMock();
+  mockRoute = buildRoutes('netfail');
+  const detailSong = { name: '结构化失败测试歌', singer: '未知', duration: 200000, songmid: 'detail-song-1' };
+  let detailErr = null;
+  try { await requestUrl('kw', 'flac', detailSong); } catch (e) { detailErr = e; }
+  assert.ok(detailErr, 'netfail 全败应抛错');
+  assert.ok(detailErr.code, `聚合错误应带代表码，实际 code=${detailErr.code}`);
+  assert.ok(Array.isArray(detailErr.detail) && detailErr.detail.length > 0, '聚合错误应带非空 detail 数组');
+  for (const d of detailErr.detail) {
+    assert.ok(d && typeof d === 'object', 'detail 每项应为对象');
+    assert.ok(typeof d.source === 'string' && d.source.length > 0, `detail.source 应为非空字符串，实际=${d.source}`);
+    assert.ok(typeof d.quality === 'string' && d.quality.length > 0, `detail.quality 应为非空字符串，实际=${d.quality}`);
+    assert.ok(typeof d.code === 'string' && d.code.length > 0, `detail.code 应为非空字符串，实际=${d.code}`);
+    assert.ok(typeof d.reason === 'string', `detail.reason 应为字符串，实际=${d.reason}`);
+  }
+  assert.ok(detailErr.detail.every(d => d.code === 'NETWORK_ERROR' || d.code === 'NETWORK_TIMEOUT' || d.code === 'RATE_LIMIT'),
+    `netfail 全败 detail.code 应全为网络类码，实际=${detailErr.detail.map(d => d.code).join(',')}`);
+
+  console.log('\n冒烟测试完成：9 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

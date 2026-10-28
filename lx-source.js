@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v13.4迭代就绪版：v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测结果并入竞速统计；v12.2源级决策日志(debug级)+mg/tx恢复评估(2026-10-28实测mg上游域名200但接口502=出口IP被咪咕限/溯音QQ仍-403，均保持关闭)；v12.3 updateAlert发版通知(仅调一次)；v13.3音质映射表收敛(QUALITY_TO_X统一magic number)；v13.4配置化(ikun/聆川密钥入配置区，默认关闭)；保留v12.0星海kw高音质双源+v11.13日志宿主防御+v11.12防错歌加固
- * @version 13.4 迭代就绪版
+ * @description v14.0失败原因结构化透出：聚合错误携带code(代表码)+detail数组(每项{source,quality,code,reason})，message文本兼容，供App端展示/统计；v13.4配置化(ikun/聆川密钥入配置区默认关闭)+v13.3音质映射表收敛+v12.1失败缓存差异化(404→1h/410→1min/网络错误不缓存)+探测并入竞速统计；保留v12.0星海kw高音质双源+v11.13日志宿主防御+v11.12防错歌加固
+ * @version 14.0 失败原因结构化版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -1203,6 +1203,8 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
+    // v14.0：失败原因结构化透出——给错误附加源 id，供聚合 detail 关联具体子源
+    if (e && typeof e === "object" && !e.sourceId) e.sourceId = handler.id;
     // v12.1：决策日志——区分熔断类错误(网络类)与业务失败(不熔断)
     logDebug(`[${handler.name}] 失败 code=${e.code || "?"} msg=${e.message}; 熔断类=${e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT}`);
     // v11.12 (D8)：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
@@ -1219,18 +1221,36 @@ async function wrapExecute(handler, platform, songInfo, quality) {
 
 // v11.8 P0-5：fallbackRace 加 6s 整体超时；超时后继续 rest 串行
 async function fallbackRace(chain, platform, songInfo, quality) {
+  // v14.0：失败原因结构化——detail 数组每项 {source, quality, code, reason}，供 App 端展示/统计
+  const collectDetails = [];
   if (chain.length === 1) {
-    return wrapExecute(chain[0], platform, songInfo, quality);
+    try {
+      return await wrapExecute(chain[0], platform, songInfo, quality);
+    } catch (e) {
+      const code = extractErrorCode(e);
+      const aggErr = new Error(`${chain[0].name}: ${e.message}`);
+      aggErr.code = code;
+      collectDetails.push({ source: chain[0].id, quality, code, reason: String((e && e.message) || "") });
+      aggErr.detail = collectDetails;
+      throw aggErr;
+    }
   }
   const firstBatch = chain.slice(0, 3);
   const rest = chain.slice(3);
   const errors = [];
+  const details = collectDetails;
   // v12.1：聚合错误携带"代表性"失败码——业务失败码优先(NOT_FOUND/MISMATCH/LINK_EXPIRED，稳定结论)，
   // 网络类码仅在全部为网络错误时兜底；避免"flac级业务失败 + 128k级网络错误"被覆盖成不缓存
   let aggCode = ERROR_CODES.NETWORK_ERROR;
   const mergeCode = (code) => {
     if (code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.LINK_EXPIRED) aggCode = code;
     else if (aggCode === ERROR_CODES.NETWORK_ERROR) aggCode = code;
+  };
+  const recordFail = (handlerId, q, err) => {
+    const code = extractErrorCode(err);
+    mergeCode(code);
+    details.push({ source: handlerId, quality: q, code, reason: String((err && err.message) || "") });
+    errors.push(err.message);
   };
   let timeoutHandle;
   const overallTimeout = new Promise((_, rej) => {
@@ -1246,19 +1266,19 @@ async function fallbackRace(chain, platform, songInfo, quality) {
   } catch (e) {
     // v12.1：raceFirst 全部失败时透出 {allFailed, errors}，逐个归并失败码（业务码优先）
     if (e && e.allFailed && Array.isArray(e.errors)) {
-      for (const err of e.errors) { errors.push(err.message); mergeCode(extractErrorCode(err)); }
+      for (const err of e.errors) { recordFail(err.sourceId || "race", quality, err); }
     } else {
-      errors.push(e.message);
-      mergeCode(extractErrorCode(e));
+      recordFail("race", quality, e);
     }
   }
   for (const handler of rest) {
     try {
       return await wrapExecute(handler, platform, songInfo, quality);
-    } catch (e) { errors.push(`${handler.name}: ${e.message}`); mergeCode(extractErrorCode(e)); }
+    } catch (e) { recordFail(handler.id, quality, e); }
   }
   const aggErr = new Error(errors.join("; "));
   aggErr.code = aggCode; // v12.1：聚合错误带代表性失败码
+  aggErr.detail = details; // v14.0：结构化失败明细
   throw aggErr;
 }
 
@@ -1320,6 +1340,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   }
 
   const errors = [];
+  const details = []; // v14.0：结构化失败明细（跨音质级汇总，供 App 端展示）
   // v12.1：代表性失败码——业务码(NOT_FOUND/MISMATCH/LINK_EXPIRED)一旦出现即固定(稳定结论)，
   // 网络类码仅在没有业务码时记录；防止低音质级(128k)的网络错误覆盖高音质级的"歌不存在"
   let lastFailCode = ERROR_CODES.NETWORK_ERROR;
@@ -1345,6 +1366,12 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     } catch (e) {
       mergeLastCode(extractErrorCode(e)); // v12.1：业务码优先归并
       errors.push(`[${q}] ${e.message}`);
+      // v14.0：透出结构化失败明细（fallbackRace 已结构化；旧路径兜底单条）
+      if (e && Array.isArray(e.detail) && e.detail.length) {
+        for (const d of e.detail) details.push({ ...d });
+      } else {
+        details.push({ source: "chain", quality: q, code: extractErrorCode(e), reason: String((e && e.message) || "") });
+      }
     }
   }
 
@@ -1363,7 +1390,10 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // 5. 记录失败缓存（v12.1：按代表性失败码差异化 TTL；网络错误不缓存，下次立即重试）
   setFailCached(failKey, lastFailCode);
   logDebug(`失败缓存写入[${platform}] code=${lastFailCode} ttl=${FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? "不缓存" : ((FAIL_CACHE_TTL_BY_CODE[lastFailCode] || FAIL_CACHE_TTL_MS) / 1000) + "s"}`);
-  throw new Error(`${ERROR_CODES.NOT_FOUND}: 所有源均失败 [${errors.join(" | ")}]`);
+  const finalErr = new Error(`${ERROR_CODES.NOT_FOUND}: 所有源均失败 [${errors.join(" | ")}]`);
+  finalErr.code = lastFailCode; // v12.1：代表性失败码
+  finalErr.detail = details; // v14.0：结构化失败明细（{source, quality, code, reason} 数组）
+  throw finalErr;
 }
 
 // ============================================================
