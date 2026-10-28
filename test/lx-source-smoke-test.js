@@ -472,7 +472,26 @@ async function test(name, fn) {
   }
   assert.ok(probeSongs.size >= 10, `探测歌曲池应≥10首，实际 ${probeSongs.size} 首`);
 
-  console.log('\n冒烟测试完成：23 组用例');
+  console.log('[T24] v22.0 配置化：注入 breakerThreshold=1 后 1 次网络失败即熔断');
+  // 重载音源并注入配置（验证 USER_CONFIG 参数化生效）
+  globalThis.__lxSourceConfig = { breakerThreshold: 1, cacheTtlMs: 9999 };
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole = globalThis.console;
+  globalThis.console = undefined; // 静默重载日志
+  try { require(SRC); } finally { globalThis.console = savedConsole; }
+  // 网络失败 1 次 → 阈值 1 → 立即熔断
+  resetMock();
+  mockRoute = () => ({ error: 'ETIMEDOUT' });
+  try { await requestUrl('wy', '128k', { name: '配置化测试', singer: '测试', duration: 200000, songmid: '424242' }); } catch (e) { /* 预期失败 */ }
+  const modV24 = require(SRC); // 缓存已删，重取新模块实例
+  const snapV24 = modV24.getHealthSnapshot();
+  let openCount = 0;
+  for (const s of Object.values(snapV24)) if (s.state === 'open') openCount++;
+  assert.ok(openCount >= 1, `breakerThreshold=1 应至少熔断1源，实际 ${openCount}`);
+  delete globalThis.__lxSourceConfig;
+
+  console.log('\n冒烟测试完成：24 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
