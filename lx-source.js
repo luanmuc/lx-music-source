@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 16.4 健康面板数据语义修正版
+ * @description v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 16.5 健康面板管能力版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -130,6 +130,8 @@ const SOURCE_TOGGLES = {
 // ============================================================
 // 运行时开关：随探测结果自动变化；buildSourceChain 以它为准
 const runtimeToggles = { ...SOURCE_TOGGLES };
+// v16.5：用户手动关闭锁定——手动 toggle(false) 的源，探测通过也不再自动启用（除非用户手动开启）
+const manualOff = {};
 
 const HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 每10分钟一轮
 const HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1000; // 加载后1分钟开始第一轮
@@ -314,7 +316,7 @@ function applyProbeResult(id, usable) {
     delete probeState.sleepRound[id];
     if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
       const wasOff = runtimeToggles[id] === false;
-      if (wasOff) {
+      if (wasOff && !manualOff[id]) { // v16.5：手动关闭锁定的源不自动复活
         runtimeToggles[id] = true;
         logInfo(`健康探测: [${id}] 连续${PROBE_PASS_REQUIRED}次探测通过，已自动启用`);
       }
@@ -1275,6 +1277,8 @@ function getHealthSnapshot() {
       // v16.4：样本计数（App 显示采样数；无样本的 successRate/avgTime 为 null → 显示"-"）
       reqCount: stats.reqCount,
       probeCount: stats.probeCount,
+      // v16.5：休眠状态（连续失败轮休眠，每 PROBE_WAKE_EVERY_ROUND 轮复活试探；App 显示"休眠中"）
+      sleeping: !!probeState.sleeping[id],
       healthScore: Number(score.score.toFixed(3))
     };
   }
@@ -1617,6 +1621,7 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
   if (platform === "wy") actions.push("lyric", "pic");
   else if (platform === "kw") actions.push("pic");
   actions.push("health"); // v16.3：健康快照 action（App fork 声明即注册 getHealth，与平台无关的聚合查询）
+  actions.push("toggle", "probe"); // v16.5：源级开关 + 手动探测 action（App fork 声明即注册，健康面板「管」能力）
   sourceConfig[platform] = {
     name: PLATFORM_NAMES[platform],
     type: "music",
@@ -1629,6 +1634,38 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
   // v16.3：健康快照 action（聚合查询，与请求的 source 无关）
   if (action === "health") {
     return Promise.resolve(getHealthSnapshot());
+  }
+  // v16.5：源级开关（手动启用/停用某子源；停用写入 manualOff 锁定，探测不再自动复活；启用清除锁定并清休眠立即纳入探测）
+  if (action === "toggle") {
+    const target = info?.id;
+    if (!target || !SOURCE_HANDLERS[target]) {
+      return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+    }
+    const next = info.enabled !== false;
+    runtimeToggles[target] = next;
+    if (next) {
+      delete manualOff[target];
+      delete probeState.sleeping[target];
+      delete probeState.deadCount[target];
+      delete probeState.sleepRound[target];
+      probeState.failCount[target] = 0;
+    } else {
+      manualOff[target] = true;
+    }
+    return Promise.resolve({ id: target, enabled: next });
+  }
+  // v16.5：手动触发一轮健康探测（并发 ~6s；探测中返回 running:true 不排队）
+  if (action === "probe") {
+    if (probeState.running) {
+      return Promise.resolve({ running: true });
+    }
+    return runHealthCheck().then(() => ({
+      running: false,
+      doneAt: Date.now(),
+      round: globalThis.__probeRound || 0,
+      active: Object.keys(runtimeToggles).filter(k => runtimeToggles[k]),
+      sleeping: Object.keys(probeState.sleeping).filter(k => probeState.sleeping[k])
+    })).catch(err => Promise.reject(err));
   }
   // v15.0：歌词/封面 action（App fork userApi 已支持；失败 App 自动走内置源兜底）
   if (action === "lyric") {
@@ -1658,7 +1695,7 @@ send(EVENT_NAMES.inited, {
 if (EVENT_NAMES && EVENT_NAMES.updateAlert && typeof send === "function") {
   try {
     send(EVENT_NAMES.updateAlert, {
-      log: "v16.4 健康面板数据语义修正版：无样本显示-（成功率/均时/采样数）+ 多源聚合 + 健康自愈",
+      log: "v16.5 健康面板管能力版：源级开关(手动锁定防探测复活)+手动探测+休眠状态；多源聚合+健康自愈",
       updateUrl: "https://github.com/luanmuc/lx-music-source/releases"
     });
   } catch (e) {
@@ -1666,7 +1703,7 @@ if (EVENT_NAMES && EVENT_NAMES.updateAlert && typeof send === "function") {
   }
 }
 
-logInfo(`豆包定制聚合音源 v16.4 健康面板数据语义修正版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v16.5 健康面板管能力版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

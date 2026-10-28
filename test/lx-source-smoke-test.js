@@ -331,8 +331,32 @@ async function test(name, fn) {
   assert.ok(Object.keys(healthViaAction).length >= 14, `health action 应覆盖全部源，实际${Object.keys(healthViaAction).length}个`);
   const firstHealth = healthViaAction[Object.keys(healthViaAction)[0]];
   assert.ok(firstHealth && typeof firstHealth.healthScore === 'number', 'health action 应含 healthScore');
+  assert.ok(typeof firstHealth.sleeping === 'boolean', 'v16.5 health action 应含 sleeping 休眠字段');
 
-  console.log('\n冒烟测试完成：15 组用例');
+  console.log('[T16] v16.5 toggle/probe：源级开关(手动锁定)+手动探测 action（App fork 通道可用）');
+  // 16a：toggle 关闭某源 → manualOff 锁定 → 快照 enabled=false
+  const toggleOff = await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'kuwoOfficial', enabled: false } });
+  assert.ok(toggleOff && toggleOff.id === 'kuwoOfficial' && toggleOff.enabled === false, `toggle 关闭失败: ${JSON.stringify(toggleOff)}`);
+  let snapAfterOff = mod.getHealthSnapshot();
+  assert.ok(snapAfterOff.kuwoOfficial.enabled === false, 'toggle 关闭后快照 enabled 应为 false');
+  // 16b：手动关闭的源即使探测通过也不自动启用（manualOff 锁定）；probe 返回结构化结果
+  const probeRes = await requestHandler({ action: 'probe', source: 'wy', info: {} });
+  assert.ok(probeRes && probeRes.running === false, `probe 应完成: ${JSON.stringify(probeRes)}`);
+  assert.ok(typeof probeRes.doneAt === 'number' && typeof probeRes.round === 'number', 'probe 应返回 doneAt/round');
+  assert.ok(Array.isArray(probeRes.active) && Array.isArray(probeRes.sleeping), 'probe 应返回 active/sleeping 列表');
+  snapAfterOff = mod.getHealthSnapshot();
+  assert.ok(snapAfterOff.kuwoOfficial.enabled === false, '手动关闭的源探测后仍应保持 false（manualOff 锁定）');
+  // 16c：toggle 开启 → 解锁并清休眠
+  const toggleOn = await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'kuwoOfficial', enabled: true } });
+  assert.ok(toggleOn && toggleOn.enabled === true, 'toggle 开启失败');
+  const snapAfterOn = mod.getHealthSnapshot();
+  assert.ok(snapAfterOn.kuwoOfficial.enabled === true, 'toggle 开启后快照 enabled 应为 true');
+  // 16d：未知源拒绝
+  let unknownRejected = false;
+  try { await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'not_exist', enabled: false } }); } catch (e) { unknownRejected = true; }
+  assert.ok(unknownRejected, 'toggle 未知源应 reject');
+
+  console.log('\n冒烟测试完成：16 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
