@@ -23,13 +23,19 @@ const verHeaderMatch = src.match(/@version\s+(\S+)/);
 const verLogMatch = src.match(/豆包定制聚合音源\s+v(\S+)/);
 const verHeader = verHeaderMatch ? verHeaderMatch[1] : null;
 const verLog = verLogMatch ? verLogMatch[1] : null;
+// v25.6：@description 首行 = @version（三处铁律补全——旧自检漏检 @description，漏改不会被拦）
+const descMatch = src.match(/@description\s+([^\n]*)/);
+const descFirst = descMatch ? descMatch[1].trim().split(/\s+/)[0] : null;
 if (!verHeader) fail('lx-source.js 缺少 @version');
 if (!verLog) fail('lx-source.js logInfo 缺少「豆包定制聚合音源 vX.Y」串');
 else if (verHeader && verLog !== verHeader) fail('版本串不同步：@version=' + verHeader + ' vs logInfo=' + verLog);
+if (verHeader && descFirst && descFirst !== 'v' + verHeader) fail('@description 首行(' + descFirst + ') 与 @version(' + verHeader + ') 不同步');
 
 // 2) actions 声明齐全
 const cfgIdx = src.indexOf('const sourceConfig');
-const actionBlock = src.slice(cfgIdx, cfgIdx + 1500);
+// v25.6：sourceConfig actions 构建块动态定位（旧实现 slice(cfgIdx, cfgIdx+1500) 固定窗口——块增长超窗口会静默漏检）
+const actionAnchor = src.indexOf('const actions = ["musicUrl"]', cfgIdx);
+const actionBlock = src.slice(actionAnchor === -1 ? cfgIdx : actionAnchor, (actionAnchor === -1 ? cfgIdx : actionAnchor) + 500);
 if (cfgIdx === -1) fail('sourceConfig 定义缺失');
 if (!src.includes('const PLATFORM_QUALITIES')) fail('PLATFORM_QUALITIES 定义缺失');
 const reportIdx = src.indexOf('const REPORT_QUALITIES');

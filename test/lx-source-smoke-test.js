@@ -545,7 +545,79 @@ async function test(name, fn) {
     assert.ok(snapV26[id], `快照应含 ${id} 新源族`);
   }
 
-  console.log('\n冒烟测试完成：26 组用例');
+  console.log('[T27] v25.6 并发保护回归：单源并发超限被节流跳过，不误记限流/不污染成功率');
+  // v25.6：T27 重载模块清状态（前序 T24 熔断注入/探测累积会污染 inflight 与计数——测试独立性）
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole27 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole27; }
+  const modV27 = require(SRC);
+  resetMock();
+  mockRoute = buildRoutes('success');
+  const slowRoute = (u) => {
+    if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw-slow.flac' } }), delay: 300 };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '', delay: 1 };
+    return { error: 'ECONNREFUSED' };
+  };
+  mockRoute = slowRoute;
+  const before27 = modV27.getHealthSnapshot();
+  const results27 = await Promise.allSettled([
+    requestUrl('kw', 'flac', { name: '并发测试曲A', singer: '测试', duration: 200000, songmid: 'CONC1' }),
+    requestUrl('kw', 'flac', { name: '并发测试曲B', singer: '测试', duration: 200000, songmid: 'CONC2' }),
+    requestUrl('kw', 'flac', { name: '并发测试曲C', singer: '测试', duration: 200000, songmid: 'CONC3' })
+  ]);
+  const okCount = results27.filter(r => r.status === 'fulfilled').length;
+  const rejected = results27.find(r => r.status === 'rejected');
+  assert.ok(okCount >= 2, `并发3请求应至少2个成功(maxConcurrency=2)，实际成功 ${okCount}`);
+  assert.ok(rejected && /RATE_LIMIT/.test(String(rejected.reason && rejected.reason.message)), `第3并发应被节流拦截(RATE_LIMIT)，实际 ${JSON.stringify(rejected)}`);
+  const after27 = modV27.getHealthSnapshot();
+  const rateCounts = Object.values(after27).map(x => x.rateLimitCount || 0).reduce((a, b) => a + b, 0);
+  const beforeRate = Object.values(before27).map(x => x.rateLimitCount || 0).reduce((a, b) => a + b, 0);
+  assert.ok(rateCounts === beforeRate, `节流跳过不应记限流统计（isThrottleSkip），前${beforeRate} 后${rateCounts}`);
+  const kwStat = after27.suyinKuwo;
+  assert.ok(kwStat.successRate >= 0.5, `节流跳过不应污染成功率，suyinKuwo successRate=${kwStat.successRate}`);
+
+  console.log('[T28] v25.6 熔断跳过不记限流 + CDN410走LINK_EXPIRED(1min差异化缓存)');
+  // 熔断跳过语义：breakerThreshold=1 + netfail → 熔断 → 再请求 → rateLimitCount 不增
+  globalThis.__lxSourceConfig = { breakerThreshold: 1, allFailShortTtlMs: 0 };
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole28 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole28; }
+  const modV28 = require(SRC);
+  resetMock();
+  mockRoute = buildRoutes('netfail');
+  await requestUrl('kw', 'flac', { name: '熔断曲', singer: '测试', duration: 200000, songmid: 'BRK1' }).catch(() => {});
+  const snapBr = modV28.getHealthSnapshot();
+  assert.ok(Object.values(snapBr).some(x => x.state === 'open'), 'netfail 应触发熔断');
+  await requestUrl('kw', 'flac', { name: '熔断曲2', singer: '测试', duration: 200000, songmid: 'BRK2' }).catch(() => {});
+  const snapBr2 = modV28.getHealthSnapshot();
+  const rateAfterBr = Object.values(snapBr2).map(x => x.rateLimitCount || 0).reduce((a, b) => a + b, 0);
+  assert.ok(rateAfterBr === 0, `熔断跳过不应记限流统计，实际 ${rateAfterBr}`);
+  delete globalThis.__lxSourceConfig;
+  // CDN 410 → LINK_EXPIRED → 失败缓存 1min（非 1h）：搜接口返回 HTTP 410
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole28b = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole28b; }
+  resetMock();
+  const route410 = (u) => {
+    if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 410, headers: {}, body: 'gone' };
+    return { error: 'ECONNREFUSED' };
+  };
+  mockRoute = route410;
+  const f1 = await requestUrl('kw', 'flac', { name: '410缓存曲', singer: '测试', duration: 200000, songmid: 'LNK1' }).catch(e => e);
+  assert.ok(f1 && f1.message && /LINK_EXPIRED/.test(f1.message), `HTTP410应聚合为LINK_EXPIRED码，实际 ${f1 && f1.message}`);
+  const cntBefore = counts['https://oiapi.net/api/Kuwo'] || 0;
+  const f2 = await requestUrl('kw', 'flac', { name: '410缓存曲', singer: '测试', duration: 200000, songmid: 'LNK1' }).catch(e => e);
+  const cntAfter = counts['https://oiapi.net/api/Kuwo'] || 0;
+  assert.ok(cntAfter === cntBefore, `410应写1min失败缓存(二次请求不重试)，前${cntBefore} 后${cntAfter}`);
+  assert.ok(f2 && /LINK_EXPIRED|已知失败/.test(f2.message), `二次请求应命中失败缓存，实际 ${f2 && f2.message}`);
+
+  console.log('\n冒烟测试完成：28 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
