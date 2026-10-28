@@ -355,7 +355,26 @@ async function test(name, fn) {
   try { await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'not_exist', enabled: false } }); } catch (e) { unknownRejected = true; }
   assert.ok(unknownRejected, 'toggle 未知源应 reject');
 
-  console.log('\n冒烟测试完成：16 组用例');
+  console.log('[T17] v17.0 失败归因分离：无版权404单独计数，不惩罚健康分/不计入成功率分母');
+  resetMock();
+  mockRoute = () => ({ statusCode: 404, body: '{"code":404,"msg":"no copyright"}' });
+  let copyrightRejected = false;
+  try {
+    await requestUrl('wy', 'flac', { name: '版权测试歌', singer: '测试', duration: 200000, songmid: '9999999' });
+  } catch (e) { copyrightRejected = true; }
+  assert.ok(copyrightRejected, '全源404应整体失败');
+  const snapV17 = mod.getHealthSnapshot();
+  const totalCf = Object.values(snapV17).reduce((acc, s) => acc + (s.copyrightFail || 0), 0);
+  assert.ok(totalCf > 0, `版权失败应被单独计数，实际 ${totalCf}`);
+  // 成功率分母剔除版权失败：全版权失败时该源 successRate 应为 null（无有效样本）
+  const firstId = Object.keys(snapV17)[0];
+  assert.ok(snapV17[firstId].successRate === null || snapV17[firstId].successRate <= 1, `successRate 应剔除版权失败分母，实际 ${snapV17[firstId].successRate}`);
+  // 熔断未被触发（业务失败不熔断）
+  let tripped = false;
+  for (const [id, s] of Object.entries(snapV17)) { if (s.state === 'open') tripped = true; }
+  assert.ok(!tripped, '版权失败不应触发熔断');
+
+  console.log('\n冒烟测试完成：17 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
