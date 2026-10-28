@@ -60,13 +60,13 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
 
-## 发布规范（每次迭代必读）
+## 发布规范
 
-1. 修改 `lx-source.js`，更新文件头 `@version` 与 `@description`（写明本轮变更与实测结论）；
-2. 本地验证：node 语法检查 + 按 [DEV_GUIDE.md 测试清单](./DEV_GUIDE.md#测试清单发布前必做) 实测；
-3. commit + push 到 master（改动集中，避免频繁触发 App 构建）；
-4. **创建 Release**：tag = `vX.Y.Z`，标题 = `聚合音源 vX.Y.Z …`，正文 = 变更说明，附件 = 当前 `lx-source.js`；
-5. （可选）需要 App 换新音源时，用 `workflow_dispatch` 触发 `lx-music-mobile` 的 release.yml 构建（push 空提交亦可）。
+> 完整发布 SOP（改 `@version` → 实测 → 提交 → Release → 联动 App）见 [DEV_GUIDE.md 第九节](./DEV_GUIDE.md#九发布-sop每次迭代必须走完)，本表只列红线。
+
+1. 每次迭代**必须**更新 `lx-source.js` 文件头 `@version` 与 `@description`（写明本轮变更与实测结论）；
+2. 发布前必须跑完 [DEV_GUIDE.md 测试清单](./DEV_GUIDE.md#八测试清单发布前必做)；
+3. 需要 App 换新音源时，用 `workflow_dispatch` 触发 `lx-music-mobile` 的 release.yml 构建（push 空提交亦可）。
 
 ## 已知失效/关闭源（保留函数便于恢复）
 
