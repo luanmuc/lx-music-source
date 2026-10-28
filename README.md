@@ -51,6 +51,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
+| **v17.0**（当前） | 失败归因分离版：无版权404/歌不存在等业务失败单独计数（copyrightFail），不计入成功率分母、不惩罚健康分、不触发熔断（v11.12 业务失败不熔断的统计口径修正——此前业务失败被记为成功，成功率虚高）；快照新增 copyrightFail 字段；冒烟 T17 |
 | **v16.2**（当前） | 数据驱动版：发布后监控/回滚决策（Release 自动巡检基线 + 核心源连续失败≥3 天回滚）；死源建议（连续 3 天失败自动标记）；仓库级成功率统计（probe-history 近 7 日） |
 | **v15.2** | 统计快照版：`getHealthSnapshot()` 导出各源成功率/均时/熔断状态/健康分（供 App 健康面板/巡检消费）；失败原因透出（v14.0 已覆盖音源侧） |
 | **v15.0** | 歌词/封面透出版：App fork 已支持 lyric/pic action——wy 歌词+封面（网易云公开接口实测可用）、kw 封面（搜索 hts_MVPIC 实测可用），失败 App 自动走内置源兜底 |
