@@ -12,6 +12,9 @@ on:
     # v13.1：每日端点巡检，自动刷新健康表并写回仓库（UTC 06:00 ≈ 北京时间 14:00）
     - cron: '0 6 * * *'
   workflow_dispatch: {}   # 手动触发
+  # v16.2：发版后自动巡检，生成发布后基线健康表（含近7日成功率 + 死源建议）
+  release:
+    types: [published]
 
 jobs:
   # ---------- v13.0：语法 + 冒烟测试 ----------
@@ -32,7 +35,7 @@ jobs:
   # ---------- v13.1：每日端点巡检 + 健康表写回 ----------
   probe:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
     permissions:
       contents: write
     steps:

@@ -267,6 +267,7 @@ on(request musicUrl)
 5. **通知**（v12.3 起）：`updateAlert` 事件随版本发送，用户 App 内可见更新弹窗；
 6. **联动**（需要 App 内置新音源时）：触发 `lx-music-mobile` 的 release.yml（`workflow_dispatch` 或 push 空提交）；
 7. **留档**：`versions/` 目录归档带版本号副本，防误删回滚。
+8. **发布后监控**（v16.2 起）：Release 发布触发 CI 端点巡检（`release: published`），生成发布后基线健康表（含近 7 日成功率与「死源建议」清单）；发版后 3 天内关注健康表核心源（gdWy/xinghaiBackend/suyinKuwo/suyin163/wyOuter）成功率——若核心源连续失败（连续 ≥3 天）说明新版本引入回归，应回滚上一版并排查；死源建议清单是下一轮迭代「摘除/留档」的输入。
 
 ## 十、版本规划备忘（2026-10-27 实证重订）
 
