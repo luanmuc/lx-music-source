@@ -374,7 +374,26 @@ async function test(name, fn) {
   for (const [id, s] of Object.entries(snapV17)) { if (s.state === 'open') tripped = true; }
   assert.ok(!tripped, '版权失败不应触发熔断');
 
-  console.log('\n冒烟测试完成：17 组用例');
+  console.log('[T18] v17.1 按音质分档：成功/失败后快照含 byQuality，各档 rate 独立');
+  resetMock();
+  mockRoute = buildRoutes('success');
+  await requestUrl('wy', 'flac', { name: '音质分档测试', singer: '测试', duration: 200000, songmid: '347230' });
+  const snapV18 = mod.getHealthSnapshot();
+  let totalReq = 0, hasByQ = false, anyRate1 = false;
+  for (const s of Object.values(snapV18)) {
+    if (s.byQuality && Object.keys(s.byQuality).length > 0) {
+      hasByQ = true;
+      for (const q of Object.values(s.byQuality)) {
+        totalReq += q.req || 0;
+        if (q.rate !== null && q.rate !== undefined) { if (q.rate === 1) anyRate1 = true; }
+      }
+    }
+  }
+  assert.ok(hasByQ, '快照应含 byQuality 分档');
+  assert.ok(totalReq > 0, '分档应有请求样本');
+  assert.ok(anyRate1, '成功请求的档位成功率应为 1（成功样本正确归类）');
+
+  console.log('\n冒烟测试完成：18 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

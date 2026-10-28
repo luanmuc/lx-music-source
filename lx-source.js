@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 17.0 失败归因分离版
+ * @description v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 17.1 音质分档版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -470,7 +470,9 @@ function getBreaker(sourceId) {
       probeRequests: 0, probeSuccess: 0, probeTime: 0,
       // v17.0：失败归因分离——版权/业务失败（无版权404、歌不存在、错歌）单独计数，
       // 不惩罚健康分、不计入成功率分母（避免热门版权歌冤枉健康源）
-      copyrightFail: 0 });
+      copyrightFail: 0,
+      // v17.1：按音质分档统计 { quality: {req, success, time, fail, businessFail} }
+      byQuality: {} });
   }
   return breakerMap.get(sourceId);
 }
@@ -486,19 +488,23 @@ function canExecute(sourceId) {
   }
   return false;
 }
-function recordSuccess(sourceId, duration) {
+function recordSuccess(sourceId, duration, quality) {
   const b = getBreaker(sourceId);
   b.totalRequests++;
   b.totalSuccess++;
   b.totalTime += duration;
+  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  q.req++; q.success++; q.time += duration;
   if (b.state === 'half-open') { b.state = 'closed'; b.failureCount = 0; logWarn(`断路器[${sourceId}] 半开试探成功，恢复`); }
   b.failureCount = 0;
 }
-function recordFailure(sourceId) {
+function recordFailure(sourceId, quality) {
   const b = getBreaker(sourceId);
   b.totalRequests++;
   b.failureCount++;
   b.lastFailureTime = Date.now();
+  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  q.req++; q.fail++;
   if (b.state === 'half-open') { b.state = 'open'; logWarn(`断路器[${sourceId}] 半开试探失败，重新熔断`); return; }
   if (b.state === 'closed' && b.failureCount >= BREAKER_THRESHOLD) {
     b.state = 'open';
@@ -507,10 +513,12 @@ function recordFailure(sourceId) {
 }
 // v17.0：版权/业务失败单独计数（无版权404、歌不存在、错歌等——源已正常响应，只是这首歌没有/需VIP）
 // 不惩罚健康分、不计入成功率分母、不触发熔断
-function recordBusinessFail(sourceId) {
+function recordBusinessFail(sourceId, quality) {
   const b = getBreaker(sourceId);
   b.totalRequests++;
   b.copyrightFail = (b.copyrightFail || 0) + 1;
+  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  q.req++; q.businessFail++;
 }
 function getSourceStats(sourceId) {
   const b = getBreaker(sourceId);
@@ -525,7 +533,16 @@ function getSourceStats(sourceId) {
     state: b.state,
     reqCount,
     probeCount,
-    copyrightFail: b.copyrightFail || 0
+    copyrightFail: b.copyrightFail || 0,
+    // v17.1：按音质分档 { quality: {rate, avgTime, req, success, businessFail} }——flac 坏但 128k 好的源可精确呈现
+    byQuality: Object.fromEntries(Object.entries(b.byQuality || {}).map(([quality, q]) => {
+      const valid = Math.max(q.req - q.businessFail, 0);
+      return [quality, {
+        rate: valid === 0 ? null : q.success / valid,
+        avgTime: q.success === 0 ? null : q.time / q.success,
+        req: q.req, success: q.success, businessFail: q.businessFail
+      }];
+    }))
   };
 }
 
@@ -1295,6 +1312,8 @@ function getHealthSnapshot() {
       sleeping: !!probeState.sleeping[id],
       // v17.0：版权/业务失败计数（无版权歌等；App 面板可在后续版本展示）
       copyrightFail: stats.copyrightFail,
+      // v17.1：按音质分档统计（面板后续版本可消费）
+      byQuality: stats.byQuality,
       healthScore: Number(score.score.toFixed(3))
     };
   }
@@ -1424,7 +1443,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
   const startTime = Date.now();
   try {
     const url = await handler.fn(platform, getHashOrMid(songInfo), quality, songInfo);
-    recordSuccess(handler.id, Date.now() - startTime);
+    recordSuccess(handler.id, Date.now() - startTime, quality);
     const finalUrl = validateUrl(url, handler.name);
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
@@ -1437,11 +1456,11 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源
     if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
         e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT) {
-      recordFailure(handler.id);
+      recordFailure(handler.id, quality);
     } else {
       // v17.0：业务失败（无版权404/歌不存在/错歌）单独归类——源正常响应，不再计入成功也不计入熔断，
       // 只记 copyrightFail（快照可见，健康分/成功率分母剔除）
-      recordBusinessFail(handler.id);
+      recordBusinessFail(handler.id, quality);
     }
     throw e;
   }
@@ -1711,7 +1730,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v17.0 失败归因分离版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v17.1 音质分档版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
