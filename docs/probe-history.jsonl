@@ -45,3 +45,18 @@
 {"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":82,"reason":"OK"}
 {"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":48,"reason":"ENOTFOUND"}
 {"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":306,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":false,"status":403,"time":96,"reason":"HTTP 403"}
+{"date":"2026-10-28","url":"https://music-dl.sayqz.com/api/","ok":false,"status":0,"time":89,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":403,"time":1128,"reason":"HTTP 403"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":1082,"reason":"OK"}
+{"date":"2026-10-28","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":1623,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":200,"time":2912,"reason":"OK"}
+{"date":"2026-10-28","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":1007,"reason":"HTTP 503"}
+{"date":"2026-10-28","url":"https://api.lingchuan.com/v1","ok":false,"status":0,"time":996,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":1690,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":2497,"reason":"OK"}
+{"date":"2026-10-28","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":2610,"reason":"OK"}
+{"date":"2026-10-28","url":"http://search.kuwo.cn/r.s","ok":false,"status":0,"time":2747,"reason":"ETIMEDOUT"}
+{"date":"2026-10-28","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":2800,"reason":"OK"}
+{"date":"2026-10-28","url":"https://api.ikunshare.com","ok":false,"status":0,"time":2077,"reason":"ENOTFOUND"}
+{"date":"2026-10-28","url":"https://github.com/luanmuc/lx-music-source/releases","ok":true,"status":206,"time":2609,"reason":"OK"}
