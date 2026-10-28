@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 17.1 音质分档版
+ * @description v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 17.2 限流退避版
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -27,7 +27,9 @@ const CACHE_MAX_SIZE = 500;
 const FAIL_CACHE_MAX_SIZE = 300;
 const HTTP_URL_REGEX = /^https?:\/\//i;
 const BREAKER_THRESHOLD = 3;            // 连续失败熔断阈值
-const BREAKER_COOLDOWN_MS = 180000;     // 熔断冷却 3分钟
+const BREAKER_COOLDOWN_MS = 180000;
+const RATE_LIMIT_BACKOFF_MS = 30000;   // v17.2：429 限流短退避(30s)，不触发熔断
+const RATE_LIMIT_TRIP = 3;            // v17.2：连续限流≥3 次标记"被限"状态     // 熔断冷却 3分钟
 const RETRY_TIMES = 1;                  // 网络错误重试次数(v11.8:2→1，避免重试放大)
 const RACE_OVERALL_TIMEOUT_MS = 6000;   // fallbackRace 整体超时(v11.8新增)
 const RACE_MATCH_WAIT_MS = 600;         // v14.2：未校验源首个成功后的等待窗口——给已验证源(内部做songInfoMatch)机会，防"快但错歌"抢答
@@ -472,12 +474,30 @@ function getBreaker(sourceId) {
       // 不惩罚健康分、不计入成功率分母（避免热门版权歌冤枉健康源）
       copyrightFail: 0,
       // v17.1：按音质分档统计 { quality: {req, success, time, fail, businessFail} }
-      byQuality: {} });
+      byQuality: {},
+      // v17.2：限流退避——429 不触发熔断，短退避后恢复；连续限流标记"被限"
+      rateLimitCount: 0, rateLimitUntil: 0, rateLimited: false });
   }
   return breakerMap.get(sourceId);
 }
+// v17.2：429 限流单独处理——短退避(30s)后自动恢复，不计入熔断阈值；连续≥3 次标记"被限"
+function recordRateLimit(sourceId, quality) {
+  const b = getBreaker(sourceId);
+  b.totalRequests++;
+  b.rateLimitCount = (b.rateLimitCount || 0) + 1;
+  b.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+  if (b.rateLimitCount >= RATE_LIMIT_TRIP) b.rateLimited = true;
+  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  q.req++; q.fail++;
+  logDebug(`[${sourceId}] 429限流第${b.rateLimitCount}次，退避${RATE_LIMIT_BACKOFF_MS / 1000}s${b.rateLimited ? '（已标记被限）' : ''}`);
+}
 function canExecute(sourceId) {
   const b = getBreaker(sourceId);
+  // v17.2：限流退避期内跳过（源没坏，只是过载/风控）；退避结束自动恢复
+  if (b.rateLimitUntil > 0) {
+    if (Date.now() < b.rateLimitUntil) return false;
+    b.rateLimitUntil = 0; b.rateLimited = false;
+  }
   if (b.state === 'closed') return true;
   if (b.state === 'open') {
     if (Date.now() - b.lastFailureTime >= BREAKER_COOLDOWN_MS) {
@@ -1314,6 +1334,9 @@ function getHealthSnapshot() {
       copyrightFail: stats.copyrightFail,
       // v17.1：按音质分档统计（面板后续版本可消费）
       byQuality: stats.byQuality,
+      // v17.2：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
+      rateLimited: !!getBreaker(id).rateLimited,
+      rateLimitCount: getBreaker(id).rateLimitCount || 0,
       healthScore: Number(score.score.toFixed(3))
     };
   }
@@ -1454,8 +1477,11 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logDebug(`[${handler.name}] 失败 code=${e.code || "?"} msg=${e.message}; 熔断类=${e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT}`);
     // v11.12 (D8)：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
     // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源
-    if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
-        e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT) {
+    if (e.code === ERROR_CODES.RATE_LIMIT) {
+      // v17.2：429 限流单独处理（不熔断，短退避）
+      recordRateLimit(handler.id, quality);
+    } else if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
+        e.code === ERROR_CODES.SERVER_ERROR) {
       recordFailure(handler.id, quality);
     } else {
       // v17.0：业务失败（无版权404/歌不存在/错歌）单独归类——源正常响应，不再计入成功也不计入熔断，
@@ -1730,7 +1756,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v17.1 音质分档版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v17.2 限流退避版已加载，上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

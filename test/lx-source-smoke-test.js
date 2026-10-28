@@ -393,7 +393,27 @@ async function test(name, fn) {
   assert.ok(totalReq > 0, '分档应有请求样本');
   assert.ok(anyRate1, '成功请求的档位成功率应为 1（成功样本正确归类）');
 
-  console.log('\n冒烟测试完成：18 组用例');
+  console.log('[T19] v17.2 429限流退避：不触发熔断、退避期内跳过(计数不增长)');
+  resetMock();
+  // 全部源持续 429：首次请求所有源各记 1 次限流并进入 30s 退避
+  mockRoute = () => ({ statusCode: 429, headers: {}, body: '' });
+  try { await requestUrl('wy', '128k', { name: '限流测试', singer: '测试', duration: 200000, songmid: '347230' }); } catch (e) { /* 预期失败 */ }
+  const snapV19a = mod.getHealthSnapshot();
+  let trippedV19 = 0, limitCountA = 0;
+  for (const s of Object.values(snapV19a)) {
+    if (s.state === 'open') trippedV19++;
+    limitCountA += s.rateLimitCount || 0;
+  }
+  assert.ok(limitCountA >= 1, `429 应被记录为限流计数，实际 ${limitCountA}`);
+  assert.ok(trippedV19 === 0, '429 不应触发熔断');
+  // 退避期内立即再请求：源被 canExecute 跳过，限流计数不再增长
+  try { await requestUrl('wy', '128k', { name: '限流测试2', singer: '测试', duration: 200000, songmid: '347230' }); } catch (e) { /* 预期失败 */ }
+  const snapV19b = mod.getHealthSnapshot();
+  let limitCountB = 0;
+  for (const s of Object.values(snapV19b)) limitCountB += s.rateLimitCount || 0;
+  assert.ok(limitCountB === limitCountA, `退避期内应跳过(计数不增长)：${limitCountA} → ${limitCountB}`);
+
+  console.log('\n冒烟测试完成：19 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
