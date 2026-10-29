@@ -93,7 +93,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（v26 系列：mg 恢复评估 / 音源日志增强 / 自动摘死源 / yunmge 实测 / 生态扫描制度化）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
+> 后续版本规划（v26 系列：音源日志增强 ✅ / 自动摘死源 ✅ / 生态扫描制度化待推进；mg 恢复、yunmge 已实证判否）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
 
 ## 发布规范
 
