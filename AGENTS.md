@@ -33,7 +33,7 @@ versions/           # （规划中）带版本号归档，防误删回滚
 # 语法检查（每次改动后必跑）
 node --check lx-source.js
 
-# 冒烟测试（固化在 test/，31 组用例）
+# 冒烟测试（固化在 test/，32 组用例）
 node test/lx-source-smoke-test.js
 
 # 生态扫描（v26.3 起：pdone 健康表交叉，产出新候选/失效清单）

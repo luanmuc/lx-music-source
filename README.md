@@ -51,7 +51,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v27.3**（当前） | 全面审计修复版：三源（溯音酷我/酷我官方/溯音咪咕）内部缓存命中返回类型统一为裸 URL（旧返回包装对象被 validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败）；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退 + 补移动 UA（网易 detail 实测带 ids 参数顶层 picUrl 恒 null、封面在 album 字段）；probe.js 端点过滤正则悬空 `|` 恒真修复；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 |
+| **v27.3**（当前） | 全面审计修复版：四源（溯音酷我/酷我官方/溯音咪咕/helloworldKw——含 v27.2 新源同源缺陷）内部缓存命中返回类型统一为裸 URL（旧返回包装对象被 validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败）；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退 + 补移动 UA（网易 detail 实测带 ids 参数顶层 picUrl 恒 null、封面在 album 字段）；probe.js 端点过滤正则悬空 `|` 恒真修复（补 kuwo 关键词保 helloworldKw 主通道纳入巡检）；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 |
 | **v27.2** | 候选 helloworld 实证接入版：生态扫描候选 helloworld 经全链端到端实证通过（2026-10-29：mock 宿主加载成功、kw flac/320k 真实返回 car-er.kuwo.cn 直链、Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过），接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付）；探测/开关/健康全链路注册 |
 | **v26.3** | 生态扫描制度化版：新增 `scripts/ecosystem-scan.js`（抓 pdone 每日健康表交叉对比，自动产出新候选/失效清单，控制台/--json 双模式），纳入迭代协议与测试清单；子源透出链音源侧冒烟覆盖确认（10+ 处 subSource 断言，防 b72/b73 回归） |
 | v26.1 | 自动摘死源版：真实播放连续失败≥3 次自动摘除出竞速链（不等探测周期）+ 快照 playDead 字段 + 三路复活（播放成功即时解除 / 探测通过解除 / 冷却期满半开试探）；与 manualOff 用户锁定分层；T31 回归用例固化，冒烟 31 组全绿 |
@@ -96,7 +96,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（v27 系列：新候选实证接入，v27.1 fish ❌ 已判否、**v27.2 helloworld ✅ 已接入**、继续 v27.3 hyw；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
+> 后续版本规划（v27 系列：新候选实证接入 + 审计修复，v27.1 fish ❌ 已判否、**v27.2 helloworld ✅ 已接入**、**v27.3 审计修复 ✅ 已交付（2026-10-30，插队）**、继续 v27.4 hyw；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
 
 ## 发布规范
 

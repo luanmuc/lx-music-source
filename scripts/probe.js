@@ -91,8 +91,10 @@ function extractEndpoints(src) {
     if (u.includes('{id}') || u.includes('{level}')) continue; // 模板 URL 跳过（无真实参数无法探测）
     urls.add(u);
   }
-  // 过滤明显非 API 的示例/文档 URL（v26.4 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正）
-  return [...urls].filter(u => /api|music|search|antiserver|outer|\.js$|\.php/i.test(u) && !u.includes('${'));
+  // 过滤明显非 API 的示例/文档 URL（v27.3 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
+  // 加 `kuwo` 关键词——正则白名单化后 nmobi.kuwo.cn/mobi.s(helloworldKw 主通道 convert_url_with_sign)
+  // 不含 api/music/search 等关键词会被误过滤，导致新源主通道脱离端点巡检）
+  return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${'));
 }
 
 // ---- 单端点探测（GET + Range 0-1023，2s 超时）----
