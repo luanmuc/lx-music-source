@@ -45,7 +45,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | 上游 api.xcvts.cn 域名 ✅（每日 200）但接口业务层 502（IP 封禁未解除，2026-10-29 实测）；**mg 真源恢复已判否**（含 Juhe mg 400），走跨平台兜底 |
 
-> 详细对照表、缺陷与**后续规划（v27 系列新候选接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
+> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
 
 ## 版本历史
 
@@ -94,7 +94,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（v27 系列：6 新候选实证接入 ⬜；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
+> 后续版本规划（v27 系列：新候选实证接入，v27.1 fish ❌ 已判否、继续 helloworld；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
 
 ## 发布规范
 
