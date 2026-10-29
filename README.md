@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v25.9**（当前） | 子源名透出版：musicUrl 返回补 subSourceName（实际子源中文名），App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射 |
+| **v25.10**（当前） | 防御修复版：raceFirst 裸 url 分支 source 兜底空串（防未来裸值调用丢失子源透出） |
+| v25.9 | 子源名透出版：musicUrl 返回补 subSourceName（实际子源中文名），App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射 |
 | v25.8 | 实际子源透出版：musicUrl 成功返回 {url,type,subSource}（实际交付链接的子源 id，缓存同存），配合 App 播放页音源标签显示「平台·子源」 |
 | v25.7 | 第三轮全维度审计修复版：探测清单过滤手动关闭/默认关闭源（juhe 五源不再白耗外呼、手动关闭源不再被标"休眠"）、保留自动关闭源自愈闭环、冒烟 T29 |
 | v25.6 | 第二轮全量审计修复版：熔断跳过不再误记限流、CDN410 走 1min 差异化缓存、删 COPYRIGHT_LIMIT/HIRES 死代码、补 allFailShortTtlMs 配置键、自检门增强 |
