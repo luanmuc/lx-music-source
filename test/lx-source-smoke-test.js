@@ -173,25 +173,42 @@ async function test(name, fn) {
   const after2 = Object.values(counts).reduce((s, v) => s + v, 0);
   assert.strictEqual(after2, before2, `网络错误全链失败应命中30s短缓存不重试（${before2}→${after2}）；30s后自动过期恢复重试`);
 
-  console.log('[T8] 熔断分类：业务失败(NOT_FOUND)不熔断、网络错误累计3次熔断');
-  // 8a 网络错误 x3 → 熔断（后续请求报"已熔断"，不进入源）
+  console.log('[T8] 熔断分类：业务失败(NOT_FOUND)不熔断、网络错误触发熔断（v26.1 摘除优先于熔断可见）');
+  // 8a 熔断机制（breakerThreshold=1：1 次失败即熔断——streak=1 未达 v26.1 摘除阈值，熔断直接可见）
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  globalThis.__lxSourceConfig = { breakerThreshold: 1, maxConcurrency: 100, rateWindowMax: 1000 };
+  const savedConsole8 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole8; }
   resetMock();
   mockRoute = buildRoutes('netfail');
-  // v25.1(A3)：网络类全链失败写30s短缓存，同一歌连续请求会命中缓存不累计熔断；
-  // 熔断按源计数与歌无关——用3首不同歌各打一次，保证3次真实外呼累计 → 熔断
-  const breakerSong = { name: '熔断测试歌', singer: '未知', duration: 180000, songmid: 'breaker-song-1' };
-  for (let i = 0; i < 3; i++) {
-    const breakerSongN = { name: '熔断测试歌', singer: '未知', duration: 180000, songmid: `breaker-song-${i + 1}` };
-    try { await requestUrl('kw', 'flac', breakerSongN); } catch (e) { /* 累积 */ }
-  }
-  // 熔断后：3 个源并发都熔断则整体抛"已熔断"；切回成功模式，仍可能因断路器挡路。
-  // 用一首新歌验证熔断拦截——同一首歌会命中 v25.1 的30s短缓存(不重试)，无法走到熔断检查
+  const breakerSongA = { name: '熔断测试歌A', singer: '未知', duration: 180000, songmid: 'breaker-song-a' };
+  await requestUrl('kw', 'flac', breakerSongA).catch(() => {});
   mockRoute = buildRoutes('success');
-  const breakerCheckSong = { name: '熔断检测歌', singer: '未知', duration: 180000, songmid: 'breaker-check-song' };
-  let breakerHit = false;
-  try { await requestUrl('kw', 'flac', breakerCheckSong); } catch (e) { if (/熔断/.test(e.message)) breakerHit = true; }
-  // 说明：kw flac 链 = suyinKuwo+xinghaiBackend（均熔断），应命中"已熔断"
-  assert.ok(breakerHit, '网络错误3次后应熔断，实际未命中熔断错误');
+  const breakerCheckA = { name: '熔断检测歌A', singer: '未知', duration: 180000, songmid: 'breaker-check-a' };
+  let breakerHitA = false;
+  try { await requestUrl('kw', 'flac', breakerCheckA); } catch (e) { if (/熔断/.test(e.message)) breakerHitA = true; }
+  assert.ok(breakerHitA, '网络错误1次(阈值1)应熔断，实际未命中熔断错误');
+  delete globalThis.__lxSourceConfig;
+  // 8b 业务失败(NOT_FOUND)不熔断（原语义保留）：404 不计数熔断，不触发摘除
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  globalThis.__lxSourceConfig = { maxConcurrency: 100, rateWindowMax: 1000 }; // 放宽本地节流：8b 高频请求不挤占后续用例限速窗口
+  const savedConsole8b = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole8b; }
+  resetMock();
+  mockRoute = buildRoutes('notfound');
+  for (let i = 0; i < 3; i++) {
+    try { await requestUrl('kw', 'flac', { name: '404歌', singer: '未知', duration: 180000, songmid: `nf-${i}` }); } catch (e) { /* 累积 */ }
+  }
+  mockRoute = buildRoutes('success');
+  let nfHit = false;
+  try { await requestUrl('kw', 'flac', { name: '404歌2', singer: '未知', duration: 180000, songmid: 'nf-check' }); } catch (e) { if (/熔断/.test(e.message)) nfHit = true; }
+  assert.ok(!nfHit, '业务失败(404)不应触发熔断');
+  delete globalThis.__lxSourceConfig;
+  // 说明：v26.1 起 3 次网络失败会同时触发播放摘除（buildSourceChain 层过滤，先于熔断可见）——摘除语义见 T31
 
   console.log('[T9] v14.0 失败原因结构化透出：聚合错误携带 code + detail 数组');
   resetMock();
@@ -213,7 +230,7 @@ async function test(name, fn) {
     `netfail 全败 detail.code 应全为网络类码，实际=${detailErr.detail.map(d => d.code).join(',')}`);
 
   console.log('[T10] v14.1 源健康权重自学习：健康评分排序（真实样本主导 + 探测低权重参考 + 连续失败惩罚）');
-  const mod = require(SRC);
+  let mod = require(SRC);
   const fake = (id) => ({ id, name: id });
   // srcA：真实 10/10 全成功 快（应排第一）
   const a = mod.getBreaker('srcA');
@@ -239,11 +256,14 @@ async function test(name, fn) {
   assert.strictEqual(d.totalSuccess, 0, '探测样本不应计入 totalSuccess');
 
   console.log('[T11] v14.2 竞速结果匹配校验：verified 源优先，未校验源不抢答');
-  // 恢复 T8/T9 熔断的源（180s 冷却无法等待，直接重置状态）
-  for (const id of ['suyinKuwo', 'xinghaiBackend', 'kuwoOfficial', 'changqingVip', 'nianxinVip', 'ikun', 'gdWy', 'suyin163', 'wyOuter', 'huibq', 'lingchuan']) {
-    const b = mod.getBreaker(id);
-    b.state = 'closed'; b.failureCount = 0; b.lastFailureTime = 0;
-  }
+  // 重置 T8/T10 累计状态（熔断 + v26.1 播放摘除）：重新加载实例
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  globalThis.__lxSourceConfig = { maxConcurrency: 100, rateWindowMax: 1000 }; // 放宽本地节流：后续高频用例不挤占限速窗口
+  const savedConsole11 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole11; }
+  mod = require(SRC);
   const json = (body) => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body });
   // 11a：星海(未verified)快 2ms 先返回，溯音酷我(verified)慢 80ms → 应等 verified 源，返回其 URL
   // （溯音酷我内部 songInfoMatch 校验要求响应带 song/singer/duration 字段）
@@ -678,7 +698,33 @@ async function test(name, fn) {
   // 断言3：聚合错误 detail 数组透出（App 失败原因展示）
   assert.ok(Array.isArray(t30Err && t30Err.detail) && t30Err.detail.length >= 2, '聚合错误应带结构化 detail');
 
-  console.log('\n冒烟测试完成：30 组用例');
+  console.log('[T31] v26.1 自动摘死源：播放连续失败摘除出链 + 快照 playDead + 探测/半开试探复活');
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  globalThis.__lxSourceConfig = { logDebug: false, breakerThreshold: 100, playDeadReviveMs: 60000, maxConcurrency: 100, rateWindowMax: 1000 };
+  const savedConsole31 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole31; }
+  const modV31 = require(SRC);
+  resetMock();
+  mockRoute = buildRoutes('netfail');
+  let sq31 = 0;
+  const req31 = () => requestHandler({ action: 'musicUrl', source: 'kw', info: { type: '128k', musicInfo: { name: '海阔天空', singer: 'Beyond', duration: 343000, songmid: 'M31' + (sq31++) } } }).catch(e => e);
+  // 1) 3 次播放失败 → 摘除（快照 playDead=true）
+  for (let i = 0; i < 3; i++) await req31();
+  let snap31 = modV31.getHealthSnapshot();
+  assert.ok(snap31.suyinKuwo.playDead === true && snap31.xinghaiBackend.playDead === true && snap31.kuwoOfficial.playDead === true, '连续3次失败应摘除出链(playDead=true)');
+  // 2) 探测通过 → 核心源复活；非探测源(128k兜底)保持摘除（靠半开试探）
+  // 探测含 CDN Range 二次可播校验：局部路由补 example.com 206（不污染全局 success 路由）
+  const probeRoutes = buildRoutes('success');
+  mockRoute = (u) => (u.includes('example.com') ? { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' } : probeRoutes(u));
+  for (let i = 0; i < 2; i++) await requestHandler({ action: 'probe', source: 'kw', info: {} }).catch(() => {});
+  snap31 = modV31.getHealthSnapshot();
+  assert.ok(snap31.suyinKuwo.playDead === false && snap31.xinghaiBackend.playDead === false, '探测通过核心源应复活');
+  assert.ok(snap31.kuwoOfficial.playDead === true, '非探测源应保持摘除(半开试探复活)');
+  delete globalThis.__lxSourceConfig;
+
+  console.log('\n冒烟测试完成：31 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
