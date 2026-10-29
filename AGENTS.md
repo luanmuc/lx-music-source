@@ -24,7 +24,8 @@ versions/           # （规划中）带版本号归档，防误删回滚
 3. 通过后：改 `lx-source.js` 头部 `@version`/`@description`、README 版本历史、并把该版本 `[ ]` → `[x]`；
 4. 走 DEV_GUIDE 发布 SOP 出 tag + Release（附 `lx-source.js` 产物）；
 5. 一次迭代 = 一个版本 = 一个提交；用户说"迭代到 X"则连续执行，每版单独提交；
-6. 标注「外部依赖」的版本（v14+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现。
+6. 标注「外部依赖」的版本（v14+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现；
+7. **例行生态扫描**（v26.3 起脚本化）：`node scripts/ecosystem-scan.js` 抓取 pdone 每日健康表交叉对比，自动产出新候选（可用未接入）/失效清单；新候选按实证规则逐个取链+Range 实测后才接入，不凭状态直接接入。
 
 ## 命令
 
@@ -32,8 +33,11 @@ versions/           # （规划中）带版本号归档，防误删回滚
 # 语法检查（每次改动后必跑）
 node --check lx-source.js
 
-# 冒烟测试（v13.0 前用参考脚本，后续固化到 test/）
-node /tmp/lx-source-smoke-test.js   # mock globalThis.lx，8 组用例
+# 冒烟测试（固化在 test/，31 组用例）
+node test/lx-source-smoke-test.js
+
+# 生态扫描（v26.3 起：pdone 健康表交叉，产出新候选/失效清单）
+node scripts/ecosystem-scan.js
 
 # 提交 + 推送（push 前先 pull --rebase）
 git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master
