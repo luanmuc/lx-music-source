@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 26.3 生态扫描制度化版（运行时同 v26.1；新增工程化脚本 scripts/ecosystem-scan.js）
+ * @description v27.2 候选 helloworld 实证接入(生态扫描候选——kw 128k/320k/flac 三档 convert_url_with_sign 直链全端到端实证通过(2026-10-29：mock宿主加载+真实flac/320k返回+Range 206+魔数校验)，与星海后端并列 kw 高音质竞速；haitangw v1 resolve-url 作通道②备用)；v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 27.2 候选 helloworld 实证接入版（kw 三档直链，与星海后端并列高音质竞速）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -127,6 +127,11 @@ const NIANXIN_URL_TEMPLATES = {
   kg: "https://music.nxinxz.com/kgqq/kg.php?id={id}&level={level}&type=mp3",
   mg: "http://music.nxinxz.com/mg.php?id={id}&level={level}&type=mp3"
 };
+// v27.2：helloworld 源（生态候选，2026-10-29 实证：kw 全链端到端可用——flac/320k 直链 Range206+魔数校验通过）
+// 通道①：酷我官方 convert_url_with_sign（rid 直取，与 kuwoOfficial 同链路族但独立子源计数；flac24bit 被服务器降级 128k，按实际交付）
+const HELLOWORLD_KW_CONVERT_API = "http://nmobi.kuwo.cn/mobi.s";
+// 通道②：haitangw v1 新版 API（code:0 + data.url 直接匹配，实测可用；作为通道①的备用）
+const HELLOWORLD_HTW_API = "https://musicserver.haitangw.cc/v1/music/resolve-url";
 
 // ============================================================
 // 第二部分：音源开关（按实测结果配置，可自行调整）
@@ -139,6 +144,7 @@ const SOURCE_TOGGLES = {
   suyin163: true,       // 溯音163：免费歌真实128k直链，VIP歌url:null自动跳过
   gdWy: true,           // GD Studio：wy flac/320k高音质优先源(限5min50次，仅高音质链用)
   xinghaiBackend: true, // 星海后端主域：kw 高音质双源(v12.0，与溯音酷我并列flac/320k) + 128k 兜底(与酷我官方并列)
+  helloworldKw: true,   // v27.2：helloworld(kw) 生态候选——convert_url_with_sign 直链 128k/320k/flac 三档全端到端实证通过(2026-10-29)，默认开启参与 kw 链竞速
   // ---- 默认关闭（接口失效/需配置，可自行开启） ----
   xinghaiBackup: false, // 星海备：域名不可解析
   suyinQQ: false,       // 溯音QQ：2026-10-28实测仍-403(oiapi.net维护中)，保持关闭待上游恢复
@@ -246,6 +252,13 @@ function buildProbeConfig() {
         const raw = typeof b === "string" ? b : String(b || "");
         return raw.includes("MP3RID") && raw.includes("abslist");
       }
+    },
+    // v27.2：helloworld(kw) 探测——convert_url_with_sign 2000kflac 固定歌(rid=228908 晴天)，code=200+url 非空判定
+    helloworldKw: {
+      tier: "secondary",
+      url: `${HELLOWORLD_KW_CONVERT_API}?f=web&user=0&source=kwplayerhd_ar_1.1.4.5_tianbao_T1A_qirui.apk&type=convert_url_with_sign&rid=228908&br=2000kflac`,
+      headers: { "User-Agent": getMobileUserAgent() },
+      check: b => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.data && typeof b.data.url === "string" && b.data.url.length > 0
     },
     // v11.9：长青kw/念心kw 302→car-er.kuwo.cn新鲜mp3，Range校验可播(用rid=228908 晴天周杰伦)
     changqingVip: {
@@ -1136,6 +1149,71 @@ async function kuwoOfficialGetUrl(platform, songId, quality, songInfo) {
   return url;
 }
 
+/* v27.2：helloworld(kw)——生态候选实证接入（2026-10-29 全链端到端验证通过）
+ * 通道① convert_url_with_sign（rid 直取，128k/320k/flac 三档真实返回，flac24bit 被服务器降级 128k 按实际交付）
+ * 通道② haitangw v1 resolve-url（code:0 + data.url 直接匹配，作通道①备用）
+ * 设计对齐既有源模式：ID 提取 → 请求 → JSON 校验 → https 升级 → Range 可播性二次校验（防签名死链） */
+const HELLOWORLD_KW_BR = { "128k": "128kmp3", "320k": "320kmp3", flac: "2000kflac", flac24bit: "4000kflac" };
+async function helloworldKwGetUrl(platform, songId, quality, songInfo) {
+  if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: helloworld仅支持kw平台`);
+  const id = songInfo?.rid || songInfo?.songmid || songInfo?.id || songId;
+  if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: helloworld缺少kw rid`);
+  const cacheKey = buildCacheKey("hwkw", songInfo, quality);
+  const cached = getCachedUrl(cacheKey);
+  if (cached && cached.url) return { url: cached.url, type: cached.quality || "128k", subSource: cached.source || "", subSourceName: SOURCE_HANDLERS[cached.source]?.name || "" };
+  const q = String(quality || "128k").toLowerCase();
+  const br = HELLOWORLD_KW_BR[q] || "2000kflac";
+  // 通道①：酷我官方 convert_url_with_sign（rid 签名直链）
+  const convertUrl = `${HELLOWORLD_KW_CONVERT_API}?f=web&user=0&source=kwplayerhd_ar_1.1.4.5_tianbao_T1A_qirui.apk&type=convert_url_with_sign&rid=${encodeURIComponent(String(id))}&br=${br}`;
+  let lastError = null;
+  try {
+    const res = await httpRequestWithRetry(convertUrl, {
+      method: "GET",
+      headers: { "User-Agent": getMobileUserAgent() },
+      timeout: TIMEOUT_CONFIG.parse
+    });
+    const data = res?.body;
+    // v27.2：校验结构——code=200 + data.url 为直链（实测响应 {code:200, data:{url,format,...}}）
+    if (data && typeof data === "object" && Number(data.code) === 200 && data.data && typeof data.data.url === "string" && data.data.url.length > 0) {
+      const rawUrl = data.data.url;
+      if (HTTP_URL_REGEX.test(rawUrl)) {
+        // v25.6 同款：CDN 410 签名死链防御——Range 轻量校验可播才返回（不缓存、不计成功）
+        const httpsUrl = upgradeToHttps(rawUrl);
+        if (!await isAudioPlayable(httpsUrl, 2500)) {
+          throw new Error(`${ERROR_CODES.LINK_EXPIRED}: helloworld签名URL不可播(CDN 410)`);
+        }
+        setCachedUrl(cacheKey, httpsUrl, q);
+        return httpsUrl;
+      }
+    }
+    lastError = new Error(`${ERROR_CODES.NOT_FOUND}: helloworld convert_url未返回有效链接`);
+  } catch (e) { lastError = e; }
+  // 通道②：haitangw v1 resolve-url 备用（通道①网络失败/结构异常时兜底）
+  try {
+    const res2 = await httpRequestWithRetry(HELLOWORLD_HTW_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent() },
+      body: JSON.stringify({
+        source: "kw",
+        songmid: String(id),
+        quality: q === "128k" ? "standard" : (q === "320k" ? "high" : "lossless")
+      }),
+      timeout: TIMEOUT_CONFIG.parse
+    });
+    const d2 = res2?.body;
+    if (d2 && typeof d2 === "object" && (Number(d2.code) === 0 || Number(d2.code) === 200) && typeof d2.url === "string" && d2.url.length > 0 && HTTP_URL_REGEX.test(d2.url)) {
+      const httpsUrl2 = upgradeToHttps(d2.url);
+      if (!await isAudioPlayable(httpsUrl2, 2500)) {
+        throw new Error(`${ERROR_CODES.LINK_EXPIRED}: helloworld htw签名URL不可播(CDN 410)`);
+      }
+      setCachedUrl(cacheKey, httpsUrl2, q);
+      return httpsUrl2;
+    }
+    if (!lastError) lastError = new Error(`${ERROR_CODES.NOT_FOUND}: helloworld htw未返回有效链接`);
+  } catch (e) { if (!lastError) lastError = e; }
+  throw lastError || new Error(`${ERROR_CODES.NOT_FOUND}: helloworld失败`);
+}
+
 /* ikun 服务器源（需卡密，默认关闭；v13.4 卡密从 USER_CONFIG.ikunApiKey 读取，开配置即用） */
 async function ikunGetUrl(platform, songId, quality, songInfo) {
   if (!USER_CONFIG.ikunApiKey) throw new Error(`${ERROR_CODES.CONFIG_ERROR}: ikun未配置卡密(USER_CONFIG.ikunApiKey)`);
@@ -1556,6 +1634,7 @@ const SOURCE_HANDLERS = {
   gdWy: { id: "gdWy", name: "GD Studio(网易)", fn: gdWyGetUrl, maxQuality: "flac" },
   wyOuter: { id: "wyOuter", name: "网易云官方", fn: wyOuterGetUrl, maxQuality: "128k" },
   kuwoOfficial: { id: "kuwoOfficial", name: "酷我官方直连", fn: kuwoOfficialGetUrl, maxQuality: "128k" },
+  helloworldKw: { id: "helloworldKw", name: "helloworld(kw)", fn: helloworldKwGetUrl, maxQuality: "flac" }, // v27.2：生态候选实证通过——kw 128k/320k/flac 三档直链(convert_url_with_sign + htw v1 双通道)
   ikun: { id: "ikun", name: "ikun", fn: ikunGetUrl, maxQuality: "flac" },
   xinghaiBackup: { id: "xinghaiBackup", name: "星海备", fn: xinghaiBackupGetUrl, maxQuality: "128k" },
   xinghaiBackend: { id: "xinghaiBackend", name: "星海后端", fn: xinghaiBackendGetUrl, maxQuality: "flac" },
@@ -1595,6 +1674,8 @@ function buildSourceChain(platform, quality) {
     // 高音质(flac/320k)：溯音酷我 + 星海后端 双源(v12.0)；128k：溯音酷我 + 星海后端 + 酷我官方 + 长青 + 念心 多源竞速兜底
     if (t.suyinKuwo) push(SOURCE_HANDLERS.suyinKuwo);
     if (t.xinghaiBackend) push(SOURCE_HANDLERS.xinghaiBackend);
+    // v27.2：helloworld(kw) 实证通过——与星海后端并列高音质竞速（flac/320k 直链）
+    if (t.helloworldKw) push(SOURCE_HANDLERS.helloworldKw);
     // v18.0：Juhe 独立新源族(kw 全音质)——排在既有稳定源之后作兜底
     if (t.juheKw) push(SOURCE_HANDLERS.juheKw);
     if (t.kuwoOfficial) push(SOURCE_HANDLERS.kuwoOfficial);
@@ -2055,7 +2136,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v26.3 生态扫描制度化版已加载（运行时同 v26.1），上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v27.2 候选 helloworld 实证接入版已加载（kw 三档直链，与星海后端并列高音质竞速），上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

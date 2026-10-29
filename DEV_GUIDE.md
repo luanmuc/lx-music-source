@@ -194,7 +194,7 @@ on(request musicUrl)
 | # | 任务 | 方案要点 | 验收标准 |
 |---|---|---|---|
 | ~~v27.1~~ | ~~候选 fish 实证~~ | ~~抓 pdone fish/latest.js → 分析上游 → 取链实测~~ | ❌ **已判否**（2026-10-29，见"已判否的候选"）：fish v1.9.0 混淆源码运行时加载成功（五平台上报），但取链与后端 haitangw 协议脱节——后端给可用直链脚本不用，官方接口被 -462 风控，kw 内部音质校验失败；端到端不可用 |
-| v27.2 | 候选 helloworld 实证 | 抓 pdone helloworld/latest.js → 分析上游 → 取链实测 | 可用→接入 kw 链（新增冒烟用例）；不可用→判否留档 |
+| ~~v27.2~~ | ~~候选 helloworld 实证~~ | ✅ **已交付**（2026-10-29）：kw 全链端到端实证通过——mock 宿主加载成功上报五平台；kw flac/320k 真实返回 car-er.kuwo.cn 直链（Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过）；接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付），探测/开关/健康全链路注册。详见"候选接入记录"节 |
 | v27.3 | 候选 hyw 实证 | 同上 | 同上 |
 | v27.4 | 候选 jiexiang 实证 | 同上 | 同上 |
 | v27.5 | 候选 lx 实证 | 同上 | 同上 |
@@ -227,6 +227,12 @@ on(request musicUrl)
 | **mg 真源恢复** | 2026-10-29 实测双路线失败：① 溯音咪咕 `api.xcvts.cn/api/music/migu` HTTP 200 但业务层 `code:502`（IP 封禁未解除）；② Juhe mg `api.music.lerd.dpdns.org/mg` HTTP 400（上游不可用）。待上游恢复后再评估 |
 | **自建 API 网关（v14.0 方向）** | 需一台服务器，违反"无服务器"定位；触发条件维持：第三方源月度失效 ≥2 次 或 用户确认可长期维护服务器 |
 | **fish（鱼源，fish_music v1.9.0，v27.1 候选）** | 2026-10-29 三层实证判否：① 加载层 OK——完全混淆源码（131KB/7 行，字符串全加密，静态零可读），mock lx 宿主运行时加载成功，上报 kw/wy/kg/tx/mg 五平台（musicUrl only，kw/tx 含 flac24bit）；② wy 链路脱节——后端 haitangw（`music.haitangw.cc/.net`）接口活着且返回**真实可用 FLAC 直链**（本机直测：HTTP 206、`audio/x-flac`、魔数 `fLaC` 校验通过），但 fish 脚本拿到后**不采用**，继续请求网易官方 `player/url`（2026-10-29 被 -462 验证码风控拦截，`url:null`）→ 酷我搜索跨源匹配失败（`strict cross-source match failed: no match`），wy 晴天/演员均如此；③ kw 链路校验失败——`convert_url_with_sign` 接口 16 连发（4 source×4 音质档）全部真实返回 url（2000kflac→flac、320kmp3→mp3），但 fish 内部判定 `kw nuoweida failed: no url`（请求 flac24bit 被服务器降级 128k，音质校验不匹配）。结论：**脚本取链逻辑与其后端协议脱节**（后端响应格式/音质期望不符），端到端不可用；pdone 健康表"可用"= 服务器 IP 直测后端接口，不等于脚本可用。**判否删除，不接入** |
+
+### 候选接入记录（实证通过，已接入）
+
+| 候选 | 实证过程 | 接入方式 |
+|---|---|---|
+| **helloworld（v27.2，2026-10-29）** | ① 静态层：`helloworld/latest.js`（544 行，**未混淆**可读），kw 上游 = 酷我官方 `convert_url_with_sign`（rid 直取）+ haitangw v1 `resolve-url` 双通道；② mock 宿主层：vm sandbox 加载成功，上报 kw/wy/kg/tx/mg 五平台（kw 含 atmos/atmos_plus/master/hires 高档位，实际交付降级）；③ 端到端层：kw 晴天(rid=228908)——`musicUrl` 请求 flac 档返回 car-er.kuwo.cn FLAC 直链、320k 档返回 mp3 直链；CDN 校验 **Range 206 + `audio/x-flac` + 魔数 `fLaC` + Content-Range 全量 55MB** 通过；flac24bit 档被服务器降级 128k mp3（与 fish 同况，不影响接入——按实际交付音质）；wy 链路上游失败（网易官方 url=null + haitangw wy 503）属上游问题非脚本问题。结论：**kw 端到端可用，pdone"可用"标记属实** | 新增 `helloworldKw` 子源：kw 链与星海后端并列高音质竞速（128k/320k/flac 三档），convert_url_with_sign 主通道 + haitangw v1 备用通道；SOURCE_HANDLERS 注册（maxQuality=flac）、SOURCE_TOGGLES 默认开启、探测（convert_url 2000kflac code=200+url 非空）、健康统计、失败明细全链路接入 |
 
 ### 接口生命周期管理（横切主线）
 
@@ -297,12 +303,13 @@ on(request musicUrl)
 | v26.2 | yunmge kw 备胎实测 | ❌ 已判否（2026-10-29 实证，无音乐上游） |
 | v26.3 | 生态扫描制度化 + 子源透出回归 | ✅ 已交付（2026-10-29：ecosystem-scan.js 脚本化 + 子源透出冒烟覆盖确认） |
 | v27.1 | 候选 fish 实证接入 | ❌ **已判否**（2026-10-29 三层实证：后端给可用直链脚本不用/官方接口 -462 风控/kw 音质校验失败） |
-| v27.2~v27.6 | 新候选实证接入（helloworld/hyw/jiexiang/lx/qdy） | ⬜ 待开发（按实证规则逐个推进） |
+| v27.2 | 候选 helloworld 实证接入 | ✅ **已交付**（2026-10-29：kw 全链端到端实证通过，接入 kw 链高音质竞速，详见"候选接入记录"） |
+| v27.3~v27.6 | 新候选实证接入（hyw/jiexiang/lx/qdy） | ⬜ 待开发（按实证规则逐个推进） |
 | v28 | 自动健康日报（原 v23.0 重编号） | ⬜ 待开发（数据积累已够） |
 | v29.1~v29.4 | App 配合的音源能力（逐字歌词/平台降级/配置热更新/健康趋势图） | ⬜ 待开发（需 App 配合） |
 | mg 恢复评估 | **已判否**（2026-10-29 实测：溯音咪咕 502 IP 封禁未解除、Juhe mg 400 上游不可用） | ❌ 从规划移除 |
 | tx 恢复 | 跟踪上游（oiapi.net 可用、接口 -403），修复即解禁 | ⏳ 触发条件驱动 |
 | xm 平台扩展 | 已判否（2026-10-29：上游无接口实测 404 + App 端官方空壳 + 自定义源协议无搜索 action） | ❌ 不再投入 |
 
-> 执行结果（2026-10-29）：v26.0 ✅ → v26.1 ✅ → v26.2 ❌ 判否 → v26.3 ✅。**v26 系列收尾**。
-> 推进序列（进行中）：**v27 系列（候选实证接入，v27.1 fish ❌ 判否，继续 v27.2 helloworld）→ v28（自动健康日报）→ v29 系列（App 配合项，按需）**；触发式待办（tx 恢复等外部条件驱动）+ 生态扫描持续产出新候选（按实证规则逐个推进）。
+> 执行结果（2026-10-29）：v26.0 ✅ → v26.1 ✅ → v26.2 ❌ 判否 → v26.3 ✅。**v26 系列收尾**。v27.1 fish ❌ 判否 → **v27.2 helloworld ✅ 接入**（v27 系列推进中）。
+> 推进序列（进行中）：**v27 系列（候选实证接入，v27.1 fish ❌ 判否、v27.2 helloworld ✅ 已接入，继续 v27.3 hyw）→ v28（自动健康日报）→ v29 系列（App 配合项，按需）**；触发式待办（tx 恢复等外部条件驱动）+ 生态扫描持续产出新候选（按实证规则逐个推进）。

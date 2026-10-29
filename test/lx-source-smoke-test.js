@@ -75,6 +75,8 @@ function buildRoutes(mode) {
       'oiapi.net/api/Kuwo': json({ data: { url: 'https://example.com/kw.flac' } }),        // 溯音酷我
       'search.kuwo.cn': { statusCode: 200, headers: {}, body: "{'MP3RID':'MP3_123','NAME':'晴天','ARTIST':'周杰伦','DURATION':271}" }, // 酷我搜索
       'antiserver.kuwo.cn': { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'https://example.com/kuwo.mp3' },   // 酷我转换
+      'nmobi.kuwo.cn': json({ code: 200, data: { url: 'https://example.com/hw.flac', format: 'flac', bitrate: 2000 } }),              // v27.2 helloworld convert_url_with_sign
+      'musicserver.haitangw.cc': json({ code: 0, url: 'https://example.com/hw2.flac' }),                                              // v27.2 helloworld htw v1 备用
       'music.163.com/song/media/outer': { statusCode: 200, headers: { 'content-type': 'audio/mpeg' }, body: '' },                   // 网易 outer
       'oiapi.net/api/Music_163': json({ code: 0, data: [{ url: 'https://example.com/163.mp3' }] }),                                  // 溯音163
     },
@@ -724,7 +726,53 @@ async function test(name, fn) {
   assert.ok(snap31.kuwoOfficial.playDead === true, '非探测源应保持摘除(半开试探复活)');
   delete globalThis.__lxSourceConfig;
 
-  console.log('\n冒烟测试完成：31 组用例');
+  console.log('[T32] v27.2 helloworld 实证接入：kw 链注册 + convert_url 主通道端到端 + htw v1 备用通道');
+  // 独立实例：仅 helloworld 路由可达，其他源全网络错误 → 验证 helloworldKw 独立可交付
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole32 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole32; }
+  const modV32 = require(SRC);
+  resetMock();
+  // 1) SOURCE_HANDLERS 注册 + 开关默认开启
+  assert.ok(modV32.buildSourceChain('kw', 'flac').some(h => h.id === 'helloworldKw'), 'kw flac 链应含 helloworldKw');
+  assert.ok(modV32.buildSourceChain('kw', '128k').some(h => h.id === 'helloworldKw'), 'kw 128k 链也应含 helloworldKw(降档兜底)');
+  // 2) 探测清单注册（默认开启源应被探测）
+  const pcfg32 = modV32.buildProbeConfig();
+  assert.ok('helloworldKw' in pcfg32, 'helloworldKw 应在探测清单');
+  // 3) 端到端：convert_url 主通道（nmobi.kuwo.cn 路由可达，其他 ECONNREFUSED）
+  mockRoute = (u) => {
+    if (u.includes('nmobi.kuwo.cn')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/hw.flac', format: 'flac', bitrate: 2000 } }) };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/x-flac' }, body: '' }; // Range 可播校验
+    return { error: 'ECONNREFUSED' };
+  };
+  const hwRes = await requestUrl('kw', 'flac', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '228908' });
+  assert.ok(hwRes && hwRes.url && hwRes.url.startsWith('https://example.com/'), `helloworld 主通道应返回直链: ${hwRes && hwRes.url}`);
+  assert.ok(hwRes.subSource === 'helloworldKw', `应透出实际子源 helloworldKw，实际 ${hwRes && hwRes.subSource}`);
+  assert.ok(hwRes.subSourceName === 'helloworld(kw)', `应透出子源中文名，实际 ${hwRes && hwRes.subSourceName}`);
+  // 4) htw v1 备用通道：主通道失败(网络错误) → 备用通道接管
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole32b = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole32b; }
+  const modV32b = require(SRC);
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('nmobi.kuwo.cn')) return { error: 'ETIMEDOUT' }; // 主通道挂
+    if (u.includes('musicserver.haitangw.cc')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, url: 'https://example.com/hw2.flac' }) };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/x-flac' }, body: '' };
+    return { error: 'ECONNREFUSED' };
+  };
+  const hwRes2 = await requestUrl('kw', 'flac', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '228908' }).catch(e => e);
+  assert.ok(hwRes2 && hwRes2.url && hwRes2.url.startsWith('https://example.com/'), `htw 备用通道应接管返回直链: ${hwRes2 && (hwRes2.url || hwRes2.message)}`);
+  assert.ok(hwRes2.subSource === 'helloworldKw', `备用通道也应透出 helloworldKw，实际 ${hwRes2 && hwRes2.subSource}`);
+  // 5) 健康快照含新源
+  const snap32 = modV32b.getHealthSnapshot();
+  assert.ok(snap32.helloworldKw && typeof snap32.helloworldKw.successRate !== 'undefined', '健康快照应含 helloworldKw');
+
+  console.log('\n冒烟测试完成：32 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
