@@ -654,7 +654,31 @@ async function test(name, fn) {
   pcfg = modV29.buildProbeConfig();
   assert.ok('suyinKuwo' in pcfg, '自动关闭源应保留在探测清单(自愈前提)');
 
-  console.log('\n冒烟测试完成：29 组用例');
+  console.log('[T30] v26.0 音源日志增强：失败明细 logInfo 输出(逐源 code+reason) + 竞速决策打点');
+  // 加载：注入 logDebug=true + console 捕获 → 全失败场景 → 断言日志行
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  globalThis.__lxSourceConfig = { logDebug: true, breakerThreshold: 100 };
+  const t30Logs = [];
+  const savedConsole30 = globalThis.console;
+  globalThis.console = { log: (...a) => t30Logs.push(a.join(' ')), warn: () => {}, error: () => {} };
+  try { require(SRC); } finally { globalThis.console = savedConsole30; }
+  resetMock();
+  mockRoute = buildRoutes('netfail');
+  const t30Err = await requestUrl('kw', 'flac', { name: '海阔天空', singer: 'Beyond', duration: 343000, songmid: 'M500001G4n4q3Z3KtV' }).catch(e => e);
+  delete globalThis.__lxSourceConfig;
+  const joined30 = t30Logs.join('\n');
+  // 断言1：失败明细 logInfo（含逐源 id=CODE(reason) 结构）
+  const failLine30 = joined30.split('\n').find(l => l.includes('[失败明细]'));
+  assert.ok(failLine30, '应输出 [失败明细] logInfo');
+  assert.ok(/\w+=([A-Z_]+)\([^)]*\)/.test(failLine30), `失败明细应含 源id=CODE(reason)，实际 ${failLine30.slice(0, 160)}`);
+  assert.ok(/平台=kw/.test(failLine30), '失败明细应含平台字段');
+  // 断言2：竞速决策打点（logDebug）
+  assert.ok(/\[竞速\]/.test(joined30), '应输出 [竞速] 决策打点');
+  // 断言3：聚合错误 detail 数组透出（App 失败原因展示）
+  assert.ok(Array.isArray(t30Err && t30Err.detail) && t30Err.detail.length >= 2, '聚合错误应带结构化 detail');
+
+  console.log('\n冒烟测试完成：30 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

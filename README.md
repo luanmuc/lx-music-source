@@ -51,7 +51,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v25.11**（当前） | 沙箱兼容版：raceFirst setInterval→setTimeout（洛雪移动端 VM 无 setInterval，修复 UnhandledPromiseRejection 与候选取回失效） |
+| **v26.0**（当前） | 音源日志增强版：竞速过程打点（候选成功/全败/首胜/单链）+ 失败逐源明细 logInfo（配合 App「音源日志」，一次失败定位到具体子源与原因）；T30 回归用例固化 |
 | v25.10 | 防御修复版：raceFirst 裸 url 分支 source 兜底空串（防未来裸值调用丢失子源透出） |
 | v25.9 | 子源名透出版：musicUrl 返回补 subSourceName（实际子源中文名），App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射 |
 | v25.8 | 实际子源透出版：musicUrl 成功返回 {url,type,subSource}（实际交付链接的子源 id，缓存同存），配合 App 播放页音源标签显示「平台·子源」 |
@@ -107,7 +107,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 源 | 状态 | 说明 |
 |---|---|---|
 | 溯音QQ | 关闭 | 实测 -403 维护中；上游 oiapi.net 可用，修复即解禁（跟踪中） |
-| 溯音咪咕 | 关闭 | 上游 api.xcvts.cn 域名 200 可用（每日巡检确认）；播放接口 502（出口 IP 维度），待 v26.0 实测/换域名 |
+| 溯音咪咕 | 关闭 | 上游 api.xcvts.cn 域名 200 可用（每日巡检确认）；播放接口业务层 502（IP 封禁未解除，2026-10-29 实测）；mg 真源恢复已判否 |
 | 星海备 | 关闭 | 域名不可解析 |
 | Huibq | 关闭 | 仅酷我真用，其他平台假兜底 |
 | 聆川 | 关闭 | 未配置密钥（`USER_CONFIG.lingchuanApiKey`）；v13.1 巡检：域名 api.lingchuan.com 不可解析 |
