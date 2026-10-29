@@ -137,6 +137,8 @@ async function test(name, fn) {
   assert.ok(res.type, `应返回实际交付音质 type: ${JSON.stringify(res)}`);
   // v25.8：实际子源透出——成功路径必须带 subSource（本 mock 竞速首个成功为 suyinKuwo/kuwoOfficial 之一）
   assert.ok(typeof res.subSource === 'string' && res.subSource, `应透出实际子源 subSource: ${JSON.stringify(res)}`);
+  // v25.9：子源中文名透出
+  assert.ok(typeof res.subSourceName === 'string' && res.subSourceName, `应透出子源中文名 subSourceName: ${JSON.stringify(res)}`);
 
   console.log('[T5] 成功缓存：重复请求不重复外呼');
   resetMock(); // 清计数（requestHandler 仍在）
