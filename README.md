@@ -43,7 +43,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v12.0） | oiapi.net ✅；zddyr.top ✅；酷我官方 CDN ⚠️ 不稳（多路兜底已稀释） |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | 上游 oiapi.net ✅，接口 -403 待恢复（跟踪中） |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
-| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | 上游 api.xcvts.cn ✅（README_HEALTH 每日 200）；播放接口层 502 待 **v26.0** 实测/换域名 |
+| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | 上游 api.xcvts.cn 域名 ✅（每日 200）但接口业务层 502（IP 封禁未解除，2026-10-29 实测）；**mg 真源恢复已判否**（含 Juhe mg 400），走跨平台兜底 |
 
 > 详细对照表、缺陷与**后续规划（v26 系列）**见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
 
