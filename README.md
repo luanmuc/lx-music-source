@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v26.3 生态扫描制度化版**（`lx-source.js` 内 `@version 26.3`） |
+| 当前版本 | **v27.2 候选 helloworld 实证接入版**（`lx-source.js` 内 `@version 27.2`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v26.3**（当前） | 生态扫描制度化版：新增 `scripts/ecosystem-scan.js`（抓 pdone 每日健康表交叉对比，自动产出新候选/失效清单，控制台/--json 双模式），纳入迭代协议与测试清单；子源透出链音源侧冒烟覆盖确认（10+ 处 subSource 断言，防 b72/b73 回归） |
+| **v27.2**（当前） | 候选 helloworld 实证接入版：生态扫描候选 helloworld 经全链端到端实证通过（2026-10-29：mock 宿主加载成功、kw flac/320k 真实返回 car-er.kuwo.cn 直链、Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过），接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付）；探测/开关/健康全链路注册 |
+| **v26.3** | 生态扫描制度化版：新增 `scripts/ecosystem-scan.js`（抓 pdone 每日健康表交叉对比，自动产出新候选/失效清单，控制台/--json 双模式），纳入迭代协议与测试清单；子源透出链音源侧冒烟覆盖确认（10+ 处 subSource 断言，防 b72/b73 回归） |
 | v26.1 | 自动摘死源版：真实播放连续失败≥3 次自动摘除出竞速链（不等探测周期）+ 快照 playDead 字段 + 三路复活（播放成功即时解除 / 探测通过解除 / 冷却期满半开试探）；与 manualOff 用户锁定分层；T31 回归用例固化，冒烟 31 组全绿 |
 | v26.0 | 音源日志增强版：竞速过程打点（候选成功/全败/首胜/单链）+ 失败逐源明细 logInfo（配合 App「音源日志」，一次失败定位到具体子源与原因）；T30 回归用例固化 |
 | v25.10 | 防御修复版：raceFirst 裸 url 分支 source 兜底空串（防未来裸值调用丢失子源透出） |
@@ -94,7 +95,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（v27 系列：新候选实证接入，v27.1 fish ❌ 已判否、继续 helloworld；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
+> 后续版本规划（v27 系列：新候选实证接入，v27.1 fish ❌ 已判否、**v27.2 helloworld ✅ 已接入**、继续 v27.3 hyw；v28：自动健康日报 ⬜；v29 系列：App 配合项 ⬜；tx 恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
 
 ## 发布规范
 
