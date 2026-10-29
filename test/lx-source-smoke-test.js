@@ -132,15 +132,19 @@ async function test(name, fn) {
 
   console.log('[T4] musicUrl 请求链路（kw flac → 星海/溯音酷我竞速）');
   const song = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908' };
-  const url = await requestUrl('kw', 'flac', song);
-  assert.ok(url && url.startsWith('https://example.com/'), `返回URL异常: ${url}`);
+  const res = await requestUrl('kw', 'flac', song);
+  assert.ok(res && res.url && res.url.startsWith('https://example.com/'), `返回URL异常: ${res && res.url}`);
+  assert.ok(res.type, `应返回实际交付音质 type: ${JSON.stringify(res)}`);
+  // v25.8：实际子源透出——成功路径必须带 subSource（本 mock 竞速首个成功为 suyinKuwo/kuwoOfficial 之一）
+  assert.ok(typeof res.subSource === 'string' && res.subSource, `应透出实际子源 subSource: ${JSON.stringify(res)}`);
 
   console.log('[T5] 成功缓存：重复请求不重复外呼');
   resetMock(); // 清计数（requestHandler 仍在）
   const countsAfter = {};
   for (const k of Object.keys(counts)) countsAfter[k] = counts[k];
   const url2 = await requestUrl('kw', 'flac', song);
-  assert.strictEqual(url2, url, '缓存命中应返回同一URL');
+  assert.strictEqual(url2.url, res.url, '缓存命中应返回同一URL');
+  assert.strictEqual(url2.subSource, res.subSource, '缓存命中应透出同一实际子源');
   const newCalls = Object.values(counts).reduce((s, v) => s + v, 0) - Object.values(countsAfter).reduce((s, v) => s + v, 0);
   assert.strictEqual(newCalls, 0, `成功缓存后不应有新增外呼，实际+${newCalls}`);
 
@@ -250,7 +254,8 @@ async function test(name, fn) {
   };
   const matchSong = { name: '匹配校验测试歌', singer: '未知', duration: 200000, songmid: 'match-song-1' };
   const verifiedUrl = await requestUrl('kw', 'flac', matchSong);
-  assert.ok(verifiedUrl.includes('example.com/kw.flac'), `verified 源应优先，实际=${verifiedUrl}`);
+  assert.ok(verifiedUrl.url.includes('example.com/kw.flac'), `verified 源应优先，实际=${verifiedUrl.url}`);
+  assert.ok(verifiedUrl.subSource, `verified 路径应透出子源: ${JSON.stringify(verifiedUrl)}`);
   // 11b：verified 源失败，未校验候选窗口后兜底返回
   resetMock();
   mockRoute = (u) => {
@@ -261,7 +266,8 @@ async function test(name, fn) {
   };
   const fallbackSong = { name: '匹配校验兜底歌', singer: '未知', duration: 200000, songmid: 'match-song-2' };
   const fallbackUrl = await requestUrl('kw', 'flac', fallbackSong);
-  assert.ok(fallbackUrl.includes('example.com/xh.flac'), `未校验候选应兜底返回，实际=${fallbackUrl}`);
+  assert.ok(fallbackUrl.url.includes('example.com/xh.flac'), `未校验候选应兜底返回，实际=${fallbackUrl.url}`);
+  assert.ok(fallbackUrl.subSource, `兜底路径应透出子源: ${JSON.stringify(fallbackUrl)}`);
 
   console.log('[T12] v14.3 探测巡检增强：分级轮次 + 失效源休眠复活');
   // 12a：分级轮次判定——core 每轮，secondary 每3轮一探
@@ -448,7 +454,8 @@ async function test(name, fn) {
   };
   mockRoute = juheRoute;
   const juheUrl = await requestUrl('kw', 'flac', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '2289089' });
-  assert.ok(typeof juheUrl === 'string' && juheUrl.includes('example.com/juhe-kw.flac'), `Juhe kw 应经303校验返回直链，实际 ${juheUrl}`);
+  assert.ok(typeof juheUrl === 'object' && juheUrl.url.includes('example.com/juhe-kw.flac'), `Juhe kw 应经303校验返回直链，实际 ${JSON.stringify(juheUrl)}`);
+  assert.ok(juheUrl.subSource, `Juhe 路径应透出子源(juheKw): ${JSON.stringify(juheUrl)}`);
   const snapV20 = mod.getHealthSnapshot();
   assert.ok(snapV20.juheKw, '快照应含 juheKw 新源族');
   assert.ok(snapV20.juheKw.maxQuality === 'flac', 'juheKw 应支持 flac 音质');
@@ -512,7 +519,8 @@ async function test(name, fn) {
   resetMock();
   mockRoute = buildRoutes('success');
   const u24 = await requestUrl('wy', 'flac', { name: '降档测试曲', singer: '测试', duration: 200000, songmid: '555666' });
-  assert.ok(typeof u24 === 'string' && u24.includes('163.mp3'), `flac 不可得时应有序降档至128k源，实际 ${u24}`);
+  assert.ok(typeof u24 === 'object' && u24.url.includes('163.mp3'), `flac 不可得时应有序降档至128k源，实际 ${JSON.stringify(u24)}`);
+  assert.ok(u24.subSource, `降档路径应透出子源: ${JSON.stringify(u24)}`);
   const snapV25 = modV25.getHealthSnapshot();
   const lastQs = Object.values(snapV25).map(x => x.lastQuality).filter(Boolean);
   assert.ok(lastQs.length >= 1, `应有源记录实际交付音质 lastQuality，实际 ${JSON.stringify(lastQs)}`);
@@ -539,7 +547,8 @@ async function test(name, fn) {
   };
   mockRoute = juheRoute26;
   const txUrl = await requestUrl('tx', 'flac', { name: 'Juhe tx 测试曲', singer: '测试', duration: 200000, songmid: '004Z8Ihr0JIu5s' });
-  assert.ok(typeof txUrl === 'string' && txUrl.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${txUrl}`);
+  assert.ok(typeof txUrl === 'object' && txUrl.url.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${JSON.stringify(txUrl)}`);
+  assert.ok(txUrl.subSource, `Juhe tx 路径应透出子源(juheTx): ${JSON.stringify(txUrl)}`);
   const snapV26 = mod.getHealthSnapshot();
   for (const id of ['juheTx', 'juheWy', 'juheKg', 'juheMg']) {
     assert.ok(snapV26[id], `快照应含 ${id} 新源族`);
