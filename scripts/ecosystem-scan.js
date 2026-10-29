@@ -17,6 +17,8 @@
 'use strict';
 
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 const PDONE_HEALTH_URL =
   'https://raw.githubusercontent.com/pdone/lx-music-source/health-status/health-state.json';
@@ -32,12 +34,21 @@ const PDONE_TO_LOCAL = {
   // fish/flower/grass/helloworld/huanyin/hyw/jiexiang/lx/qdy → 本仓库无对应
 };
 
-// 本仓库源（与 lx-source.js SOURCE_HANDLERS 保持同步；self-check 不校验此表，更新源时顺手维护）
-const LOCAL_SOURCES = [
-  'gdWy', 'wyOuter', 'kuwoOfficial', 'ikun', 'xinghaiBackup', 'xinghaiBackend',
-  'huibq', 'lingchuan', 'suyinQQ', 'suyin163', 'suyinKuwo', 'juheKw',
-  'juheTx', 'juheWy', 'juheKg', 'juheMg', 'suyinMigu', 'changqingVip', 'nianxinVip',
-];
+// v26.4 (S5)：本仓库源列表改为从 lx-source.js SOURCE_HANDLERS 动态提取——旧实现手工维护此表
+// 且 self-check 不校验，源增删会漂移导致报告交叉项失真。动态提取后增删源自动同步、永不漂移；
+// 若 lx-source.js 结构变更导致提取失败，明确报错退出（不静默产出错误报告）。
+const SRC_PATH = path.join(__dirname, '..', 'lx-source.js');
+const LOCAL_SOURCES = (() => {
+  const src = fs.readFileSync(SRC_PATH, 'utf8');
+  const block = src.match(/const SOURCE_HANDLERS = \{([\s\S]*?)\n\};/);
+  if (!block) throw new Error('lx-source.js 中未找到 SOURCE_HANDLERS 定义块，请检查源码结构');
+  const ids = [];
+  const re = /^\s+(\w+):\s*\{\s*id:\s*"([^"]+)"/gm;
+  let m;
+  while ((m = re.exec(block[1]))) ids.push(m[2]);
+  if (!ids.length) throw new Error('SOURCE_HANDLERS 块未提取到任何源 id，请检查条目格式');
+  return ids;
+})();
 
 function fetchJson(url, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {

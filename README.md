@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v27.2 候选 helloworld 实证接入版**（`lx-source.js` 内 `@version 27.2`） |
+| 当前版本 | **v27.3 全面审计修复版**（`lx-source.js` 内 `@version 27.3`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v27.2**（当前） | 候选 helloworld 实证接入版：生态扫描候选 helloworld 经全链端到端实证通过（2026-10-29：mock 宿主加载成功、kw flac/320k 真实返回 car-er.kuwo.cn 直链、Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过），接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付）；探测/开关/健康全链路注册 |
+| **v27.3**（当前） | 全面审计修复版：三源（溯音酷我/酷我官方/溯音咪咕）内部缓存命中返回类型统一为裸 URL（旧返回包装对象被 validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败）；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退 + 补移动 UA（网易 detail 实测带 ids 参数顶层 picUrl 恒 null、封面在 album 字段）；probe.js 端点过滤正则悬空 `|` 恒真修复；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 |
+| **v27.2** | 候选 helloworld 实证接入版：生态扫描候选 helloworld 经全链端到端实证通过（2026-10-29：mock 宿主加载成功、kw flac/320k 真实返回 car-er.kuwo.cn 直链、Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过），接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付）；探测/开关/健康全链路注册 |
 | **v26.3** | 生态扫描制度化版：新增 `scripts/ecosystem-scan.js`（抓 pdone 每日健康表交叉对比，自动产出新候选/失效清单，控制台/--json 双模式），纳入迭代协议与测试清单；子源透出链音源侧冒烟覆盖确认（10+ 处 subSource 断言，防 b72/b73 回归） |
 | v26.1 | 自动摘死源版：真实播放连续失败≥3 次自动摘除出竞速链（不等探测周期）+ 快照 playDead 字段 + 三路复活（播放成功即时解除 / 探测通过解除 / 冷却期满半开试探）；与 manualOff 用户锁定分层；T31 回归用例固化，冒烟 31 组全绿 |
 | v26.0 | 音源日志增强版：竞速过程打点（候选成功/全败/首胜/单链）+ 失败逐源明细 logInfo（配合 App「音源日志」，一次失败定位到具体子源与原因）；T30 回归用例固化 |
