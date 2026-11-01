@@ -60,6 +60,36 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 4. 冲突裁决优先级：**协议合规 / 实证结论 > 个人偏好**；文档段落冲突以最近提交为准，存疑时群内确认；
 5. 合入后必须重跑验证链（L0→L2 至少），确认自己与对方的改动都存活。
 
+## 文档同步规范（强制，无需提醒）
+
+> 任何功能/修复/版本改动落地后，**必须主动同步更新本仓库全部相关文档**，不等用户提醒。与 App 仓库（lx-music-mobile AGENTS.md「文档同步规范」）同标准。
+
+### 触发场景 → 必同步文档
+
+| 改动类型 | 必同步文档 |
+|---|---|
+| 版本迭代（@version 升版） | `lx-source.js` 头部 `@version`/`@description`/运行时 `logInfo` 版本串 + `README.md`「当前版本」行与版本历史表 + `docs/ITERATION_ROADMAP.md` 该版本 `[ ]`→`[x]`（候选顺延） |
+| 子源新增/关闭/开关默认值 | `lx-source.js` 开关注释 + `README.md`「已知失效/关闭源」表 + `DEV_GUIDE.md` 实测状态表 |
+| 健康口径/评分/输出格式 | `lx-source.js` 公式与字段注释 + `README.md` 版本历史行 + ROADMAP |
+| 工程脚本（probe/ecosystem-scan/self-check） | `README.md` 版本历史 + `DEV_GUIDE.md` 相应小节 + `AGENTS.md` 命令段（如涉及） |
+| 上游依赖/协议变更 | `DEV_GUIDE.md` 协议合规小节 + README 版本历史 + ROADMAP 依赖列 |
+
+### 三条铁律
+
+1. **同提交或紧随提交**：文档更新与代码改动在同一提交内，或紧随其后的独立 docs 提交，禁止"代码入库、文档欠账"；
+2. **文档即代码**：改 `@version`/默认开关/公式口径/脚本行为时，与代码同步改文档，任何一处遗漏视为改动未完成；
+3. **历史归档不改写**：已交付版本的 README 版本历史/ROADMAP 行只补不删改（修正笔误除外）；新变更一律追加新版本条目。
+
+### 推送前必跑（文档一致性闸门）
+
+```bash
+node --check lx-source.js       # L0 语法
+node test/lx-source-smoke-test.js  # L1 冒烟 32 组
+node scripts/self-check.js      # 发布自检：@version 与 @description/logInfo/README/ROADMAP 同步，任一失败阻断发布
+```
+
+`self-check.js` 即本仓库的文档一致性检查（版本串/README 版本条目/ROADMAP 交付标记三向校验），推送前必须清零；新增文档字段需同步扩展自检项。
+
 ## 实证开发流程（强制 · 2026-10-28 起）
 
 > **铁律：没有实证依据的改动不进代码；没有走完验证链的改动不进 master。**
