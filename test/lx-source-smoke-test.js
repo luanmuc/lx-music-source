@@ -360,7 +360,8 @@ async function test(name, fn) {
     assert.ok(typeof s.successRate === 'number' || s.successRate === null, `${id} 缺 successRate(无样本可为null)`);
     assert.ok(typeof s.avgTime === 'number' || s.avgTime === null, `${id} 缺 avgTime(无样本可为null)`);
     assert.ok(['closed', 'open', 'half-open'].includes(s.state), `${id} state 异常: ${s.state}`);
-    assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -2 && s.healthScore <= 1, `${id} healthScore 越界: ${s.healthScore}`);
+    // v27.4：健康分 10 分制（0~10，内部 0~1 ×10；负分保留——异常源可到 -9 量级）
+    assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -10 && s.healthScore <= 10, `${id} healthScore 越界: ${s.healthScore}`);
     assert.ok(typeof s.reqCount === 'number' && typeof s.probeCount === 'number', `${id} 缺样本计数`);
   }
 
