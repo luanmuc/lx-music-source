@@ -12,33 +12,38 @@ const path = require('path');
 const HISTORY_PATH = path.join(__dirname, '..', 'docs', 'probe-history.jsonl');
 const OUT_DIR = path.join(__dirname, '..', 'docs', 'health-daily');
 
-// 端点 → 源名称映射（与 lx-source.js SOURCE_HANDLERS 对应）
-const ENDPOINT_MAP = {
-  'https://music-api.gdstudio.xyz/api.php': 'gdWy (GD Studio 网易)',
-  'http://antiserver.kuwo.cn/anti.s': 'kuwoOfficial (酷我官方直连)',
-  'http://nmobi.kuwo.cn/mobi.s': 'helloworldKw (helloworld kw)',
-  'http://search.kuwo.cn/r.s': 'kuwoSearch (酷我搜索)',
-  'https://musicserver.haitangw.cc/v1/music/resolve-url': 'helloworldHtw (haitangw v1)',
-  'https://oiapi.net/api/Kuwo': 'suyinKuwo (溯音酷我)',
-  'https://oiapi.net/api/Music_163': 'suyin163 (溯音163)',
-  'https://oiapi.net/api/QQ_Music': 'suyinQQ (溯音QQ)',
-  'https://api.xcvts.cn/api/music/migu': 'suyinMigu (溯音咪咕)',
-  'https://yy.zddyr.top/lx/api/': 'xinghaiBackend (星海后端)',
-  'https://music-dl.sayqz.com/api/': 'xinghaiBackup (星海备)',
-  'https://api.music.lerd.dpdns.org': 'juheKw/juheTx/juheWy/juheKg/juheMg (Juhe 聚合)',
-  'https://api.lingchuan.com/v1': 'lingchuan (聆川)',
-  'https://lxmusicapi.onrender.com': 'huibq (Huibq)',
-  'https://api.ikunshare.com': 'ikun (ikun)',
-  'https://music.163.com/api/song/detail': 'wyDetail (网易 detail)',
-  'https://music.163.com/api/song/lyric': 'wyLyric (网易歌词)',
-  'https://img2.kuwo.cn/${item.MVPIC}': 'kwPic (酷我封面模板)',
-  'https://github.com/luanmuc/lx-music-source/releases': 'githubReleases (GitHub Release)',
-};
+// 端点 → 源名称映射（前缀匹配，与 lx-source.js SOURCE_HANDLERS 对应）
+const ENDPOINT_MAP = [
+  ['https://music-api.gdstudio.xyz/api.php', 'gdWy (GD Studio 网易)'],
+  ['http://antiserver.kuwo.cn/anti.s', 'kuwoOfficial (酷我官方直连)'],
+  ['http://nmobi.kuwo.cn/mobi.s', 'helloworldKw (helloworld kw)'],
+  ['http://search.kuwo.cn/r.s', 'kuwoSearch (酷我搜索)'],
+  ['https://musicserver.haitangw.cc/v1/music/resolve-url', 'helloworldHtw (haitangw v1)'],
+  ['https://oiapi.net/api/Kuwo', 'suyinKuwo (溯音酷我)'],
+  ['https://oiapi.net/api/Music_163', 'suyin163 (溯音163)'],
+  ['https://oiapi.net/api/QQ_Music', 'suyinQQ (溯音QQ)'],
+  ['https://api.xcvts.cn/api/music/migu', 'suyinMigu (溯音咪咕)'],
+  ['https://yy.zddyr.top/lx/api/', 'xinghaiBackend (星海后端)'],
+  ['https://music-dl.sayqz.com/api/', 'xinghaiBackup (星海备)'],
+  ['https://api.music.lerd.dpdns.org', 'juheKw/juheTx/juheWy/juheKg/juheMg (Juhe 聚合)'],
+  ['https://api.lingchuan.com/v1', 'lingchuan (聆川)'],
+  ['https://lxmusicapi.onrender.com', 'huibq (Huibq)'],
+  ['https://api.ikunshare.com', 'ikun (ikun)'],
+  ['https://music.163.com/api/song/detail', 'wyDetail (网易 detail)'],
+  ['https://music.163.com/api/song/lyric', 'wyLyric (网易歌词)'],
+  ['https://img2.kuwo.cn/', 'kwPic (酷我封面模板)'],
+  ['https://github.com/luanmuc/lx-music-source/releases', 'githubReleases (GitHub Release)'],
+];
+
+function mapEndpointName(url) {
+  for (const [prefix, name] of ENDPOINT_MAP) {
+    if (url.startsWith(prefix)) return name;
+  }
+  return url.slice(0, 50);
+}
 
 const FAIL_RATE_THRESHOLD = 0.5; // 真故障率超 50% 触发摘除建议
 const CONSECUTIVE_FAIL_DAYS = 3; // 连续 3 天
-
-function parseDate(d) { return d; }
 
 function loadHistory() {
   if (!fs.existsSync(HISTORY_PATH)) return [];
@@ -62,7 +67,8 @@ function aggregate(entries, days = 7) {
 
   const results = [];
   for (const [url, recs] of Object.entries(byUrl)) {
-    const recent = recs.filter(r => recentSet.has(r.date));
+    const recent = recs.filter(r => recentSet.has(r.date))
+      .sort((a, b) => a.date.localeCompare(b.date)); // 按日期升序，确保取最新
     if (!recent.length) continue;
     const total = recent.length;
     const success = recent.filter(r => r.ok).length;
@@ -89,7 +95,7 @@ function aggregate(entries, days = 7) {
     const shouldFlag = consecutiveFail >= CONSECUTIVE_FAIL_DAYS || failRate > FAIL_RATE_THRESHOLD;
     results.push({
       url,
-      name: ENDPOINT_MAP[url] || url.slice(0, 50),
+      name: mapEndpointName(url),
       total, success, fail,
       rate: parseFloat(rate),
       avgTime,
@@ -108,6 +114,7 @@ function renderReport({ results, recentDates }, targetDate) {
   lines.push('');
   lines.push(`> 统计窗口：近 ${recentDates.length} 天（${recentDates[0]} ~ ${recentDates[recentDates.length - 1]}）`);
   lines.push(`> 生成脚本：\`scripts/health-daily.js\`（v28）`);
+  lines.push(`> 数据口径：probe-history.jsonl 记录的是端点 GET 探测结果，**不等于实际取链行为**（部分源取链为 POST 带参数）；摘除建议为参考，最终以 L2 实测为准。`);
   lines.push('');
   lines.push('## 端点状态总览');
   lines.push('');
