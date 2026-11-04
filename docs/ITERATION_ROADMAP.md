@@ -191,7 +191,7 @@
 
 > 背景：v26.3 生态扫描真实跑通，产出 **6 个新候选**（pdone 每日 CI 健康表可用、本仓库未接入）：fish / helloworld / hyw / jiexiang / lx / qdy。
 > 规则：每个候选**先实证后接入**——抓 `latest.js` 分析上游 → 真实取链 → CDN Range 206 + 魔数/码率校验 → 通过才接入 kw 链；不可用/无上游即判否删除，继续下一个。**禁止凭 pdone 状态直接接入。**
-> 已交付：v27.1 fish ❌ 判否 → v27.2 helloworld ✅ 接入 → v27.3 审计修复 ✅（插队）→ **v27.4 健康分 10 分制 ✅（2026-11-01 插队，App 健康面板直观化）**；候选 hyw/jiexiang/lx/qdy 依次顺延 v27.5~v27.8。
+> 已交付：v27.1 fish ❌ 判否 → v27.2 helloworld ✅ 接入 → v27.3 审计修复 ✅（插队）→ **v27.4 健康分 10 分制 ✅（2026-11-01 插队，App 健康面板直观化）**；6 候选实证收官（2026-10-30）：仅 helloworld ✅ 接入，其余 hyw ❌(后端502) / jiexiang ⚠️(零增量不接入) / lx ❌(防搬运403) / qdy ❌(410死链) 均判否或留档，v27.5~v27.8 闭环。
 
 | 版本 | 任务 | 验收标准 | 依赖 | 状态 |
 |---|---|---|---|---|
@@ -199,10 +199,10 @@
 | **v27.2** | 候选 helloworld 实证接入 | 抓 pdone helloworld/latest.js → 分析上游 → mock 宿主加载 → 取链实测（kw 全链端到端） | v26.3 候选清单 | [x] 已交付（2026-10-29：mock 宿主加载成功上报五平台；kw flac/320k 真实返回 car-er.kuwo.cn 直链，Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过；接入 kw 链与星海后端并列高音质竞速，convert_url_with_sign + haitangw v1 双通道，探测/开关/健康全链路注册） |
 | **v27.3** | 全面审计修复（S1/S4/S5 + helloworldKw 同源缺陷） | 三源（溯音酷我/酷我官方/溯音咪咕）+ helloworldKw 内部缓存命中返回类型统一为裸 URL——旧返回 `{url,type,subSource}` 包装对象被 wrapExecute validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退+补移动 UA——网易 detail 实测（2026-10-30 双曲对照）带 ids 参数顶层 picUrl 恒 null、封面稳定在 album 字段；probe.js 端点过滤正则悬空 `|` 恒真修复（补 kuwo 关键词保 helloworldKw 主通道纳入巡检）；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 | 双仓库全面审计 P1/P2/P3 发现 | [x] 已交付（2026-10-30：动态复验 S1 缓存命中 0ms 返回裸 URL 不再被拦、S4 wy/pic 107ms 拿到封面；语法+冒烟 32 组+L2 自检全绿；ecosystem-scan 动态提取 20 源含新接入 helloworldKw 自动纳入） |
 | **v27.4** | 健康分 10 分制输出（App 健康面板直观化） | 快照 `healthScore` 由 0~1 改 0~10（一位小数）——内部评分/排序/熔断逻辑不变，仅输出 ×10 换算；负分保留（异常源 App 标红） | v27.3 | [x] 已交付（2026-11-01：`computeHealthScore` 内部 0~1 不动，仅 `getHealthSnapshot` 输出 ×10；App 端 Health.tsx 显示一位小数 + 阈值同步（≥3 绿 / ≥−5 默认 / <−5 红）；语法+自检全绿） |
-| **v27.5** | 候选 hyw 实证接入 | 同 v27.1；已抓取情报（2026-11-01）：HYWmusic 公益版 v1.2.0（pdone 收录，Macrohard0001/HYWmusic_source），API_BASE=`103.79.184.97`，`/api/music/url` GET+query（songId/songmid/hash 等全字段透传 + quality + 内置卡密 key=`6C1F-53W0-GRKI-EVFG`），支持 kw/tx/wy/mg/kg 等 9 平台最高 flac24bit。风险点：卡密制（可能失效/风控）、单 IP API、无独立 lyric/pic（回退空）。验收：kw 全链实测 Range 206 + 魔数 | v27.4 | [ ] 待开发 |
-| **v27.6** | 候选 jiexiang 实证接入 | 同 v27.1 | v27.5 | [ ] 待开发 |
-| **v27.7** | 候选 lx 实证接入 | 同 v27.1 | v27.6 | [ ] 待开发 |
-| **v27.8** | 候选 qdy 实证接入 | 同 v27.1 | v27.7 | [ ] 待开发 |
+| ~~v27.5~~ | ~~候选 hyw 实证接入~~ | 已实证判否（2026-10-30，见下方「已判否」节）：HYWmusic 公益版 v1.2.0 未混淆、协议规范（GET `/api/music/url`），内置卡密 `6C1F-53W0-GRKI-EVFG`、支持 kw/tx/wy/mg/kg 等 9 平台 flac24bit；mock 宿主加载成功上报 10 平台。**但后端 `103.79.184.97` 整体 502**——根路径/releases/info/url 全端点、http/https、多轮重试均返回 nginx 502（HTML 非 JSON），脚本抛"服务端返回非 JSON"。脚本协议层无问题，系后端服务器当前不可用（nginx 存活、上游服务挂） | v27.4 | ❌ 已判否并移除（后端 502；恢复可重评，见触发式待办） |
+| ~~v27.6~~ | ~~候选 jiexiang 实证接入~~ | 实证结论（2026-10-30，见下方「已判否」节）：**脚本端到端可用但不整体接入**——杰翔聚合 v2.3.0 未混淆，kw 窗口竞速真实返回 car-er.kuwo.cn FLAC 直链（flac/320k 双档 Range 206+魔数 fLaC/ID3 校验通过），成功走星海主后端 zddyr。**不接入原因（边际增量为零）**：成功通道已由 xinghaiBackend 接入；独有新源酷我流媒体 8928 端口 404、笒鬼鬼 521、妖狐页面失效、聆澜 401 需公益卡密，当前全不可用/需配置；整体并入会膨胀 91KB+重复外呼 | v27.5 | ⚠️ 实证通过、不整体接入（无增量，留档） |
+| ~~v27.7~~ | ~~候选 lx 实证接入~~ | 已实证判否（2026-10-30，见下方「已判否」节）：独家音源 v7 用特殊 Unicode 字符混淆，mock 宿主加载成功上报 6 平台；但真实取链后端 `88.lxmusic.中国`（xn--fiqs8s）对 `/rconfig`、`/v4s/url` 均返回 **403「脚本完整性验证失败」**——脚本用 fp 指纹+signSalt 动态生成多重签名（e/to/s2/si/s3，每次含动态因子），用原始未修改脚本+正确 hex md5 仍被拒。**系防搬运完整性校验：后端只对官方完整环境放行，提取/改写进 lx-source 必然破坏完整性、后端不可复用** | v27.6 | ❌ 已判否并移除（封闭防搬运） |
+| ~~v27.8~~ | ~~候选 qdy 实证接入~~ | 已实证判否（2026-10-30，见下方「已判否」节）：全豆要 v9.3 未混淆，架构（buildSourceChain）与本仓库高度雷同，加载成功上报 6 平台；但真实取链唯一成功通道（oiapi 溯音，br=1）返回的 `kw-er.kuwo.cn` 签名链接，连续多次、完整 GET/Range/多 UA 均 **410 Gone 死链**——oiapi 接口本身 200 存活，但其中转的酷我 convert_url_with_sign 链接当前在 CDN 层失效。其余上游 huibq DNS 已不解析、gdstudio 400，无新通道、零增量。对照本仓库同曲走 helloworld 拿到 car-er 206 健康 | v27.7 | ❌ 已判否并移除（成功链为 410 死链） |
 
 ### v28 — 自动健康日报（2026-10-29 重编号：原 v23.0）
 
@@ -270,6 +270,10 @@
 | **自建 API 网关 / 多域名容灾 / 签名代理化** | 均需服务器部署，违反"无服务器"定位；触发条件：第三方源月度失效 ≥2 次 或 用户确认可长期维护服务器 |
 | **yunmge（云萌阁）kw 备胎** | 2026-10-29 实体定位：yunmge = Gitee 组织「云萌阁」（gitee.com/yunmge），该组织仅 1 个仓库「短视频解析」（PHP 源码，支持短视频平台解析）——非音乐 API、且需自建服务器（违反无服务器定位）；GitHub 搜索 yunmge 0 仓库；yunmge.com/.cn/.net/.top 全部不可达。不存在可实测的 kw 音乐上游，无法接入；kw 链现有冗余（suyinKuwo/xinghaiBackend/kuwoOfficial/changqingVip/nianxinVip 五源）已充足 |
 | **fish（鱼源，fish_music v1.9.0）** | 2026-10-29 实证判否：① 上游后端 haitangw（`music.haitangw.cc`/`.net`）接口活着且返回**真实可用 FLAC 直链**（Range 206 ✓ `audio/x-flac` ✓ 魔数 `fLaC` ✓），但 fish 脚本拿到后**不采用**，继续走网易官方 `player/url`（被 -462 验证码风控拦截，`url:null`）→ 酷我搜索跨源匹配失败（`strict cross-source match failed: no match`，wy 晴天/演员均如此）；② kw 链路 `convert_url_with_sign` 接口 16 连发（4 source×4 音质档）全部真实返回 url（flac/mp3），fish 内部音质校验判定失败（`kw nuoweida failed: no url`，请求 flac24bit 被服务器降级 128k）；③ 结论：脚本取链逻辑与其后端协议脱节（后端响应格式不匹配/音质档位期望不符），端到端不可用——pdone 健康表"可用"是服务器 IP 直测后端接口的结论，不等于脚本可用。**判否删除，不接入** |
+| **hyw（HYWmusic 公益版 v1.2.0）** | 2026-10-30 实证判否：① 脚本未混淆、协议规范（`GET /api/music/url`，内置卡密 `6C1F-53W0-GRKI-EVFG`，code=200 取 url），mock 宿主加载成功上报 10 平台（kw/tx/wy/kg/mg/qs/bili/ytb/xm，含 flac24bit）；② 后端 `103.79.184.97` **整体 502 不可用**——根路径 `/`、`/api/releases`、`/api/music/info`、`/api/music/url` 全端点，http/https 双协议，3 轮重试均返回 nginx 502（HTML 非 JSON），脚本抛"服务端返回非 JSON 数据"；③ 与 fish 性质不同：**脚本协议层无问题，系后端服务器当前不可用**（nginx 存活、上游服务挂）。当前端到端无法取链，判否删除；后端恢复后可重评（见触发式待办） |
+| **jiexiang（杰翔聚合 v2.3.0）** | 2026-10-30 实证结论：**端到端可用但不整体接入（留档）**。① 脚本未混淆、50+ 端点窗口竞速；kw 端到端真实可用（flac/320k 直链 Range 206+魔数通过），成功走星海主后端 zddyr；② 但成功通道（星海 zddyr）已由 `xinghaiBackend` 接入——边际增量为零；独有新源（酷我流媒体 8928 端口 404、笒鬼鬼 521、妖狐页面失效、聆澜 401 需公益卡密）当前全不可用/需配置，整体并入主文件会膨胀 91KB+重复外呼。结论：保留生态参考，卡密/失效源入触发式待办，不接入 |
+| **lx（独家音源 v7）** | 2026-10-30 实证判否：① 脚本用特殊 Unicode 字符混淆，mock 宿主加载成功上报 6 平台（含 local）；② 真实取链后端 `88.lxmusic.中国`（xn--fiqs8s）对 `/rconfig`、`/v4s/url/kw/...` 均返回 **403「脚本完整性验证失败」**——脚本以 fp 指纹（`42bc92aa…`）+ signSalt（`LxSrv@2026#Sig`）动态生成 e/to/s2/si/s3 多重签名（两次请求签名全变、含动态因子），用原始未修改脚本+正确 hex md5（已验证 Buffer 格式会内部报错、hex 才正确）后端仍拒绝；③ 根因是**防搬运完整性校验**：后端只对官方完整运行环境放行，任何提取/改写进 lx-source 都会破坏脚本完整性，签名无法通过、后端不可复用；④ pdone 标"可用"仅因 probe.py 对主机根路径 GET 连通（拿到 403/401/5xx 都算存活、从不验证取链），不代表可接入。**判否删除，不接入** |
+| **qdy（全豆要 v9.3 93特供版）** | 2026-10-30 实证判否：① 脚本未混淆，架构（buildSourceChain/SOURCE_HANDLERS）与本仓库高度雷同，加载成功上报 6 平台；② 真实取链唯一成功通道（oiapi 溯音，flac→br=1，正确返回 FLAC 元信息 bitrate 2000/52.83Mb），但产出的 `kw-er.kuwo.cn` 签名链接连续多次、完整 GET/Range/多 UA 均 **410 Gone 死链**——oiapi 接口本身 200 存活，但其中转的酷我 convert_url_with_sign 链接当前在 CDN 层失效；③ 其余上游 huibq（api.huibq.com DNS 已不解析）、gdstudio（400），念心/长青/灵川/星海等均已接入或失效，无新可用通道；④ 对照本仓库 lx-source 同曲 kw flac 走 helloworld（nmobi.kuwo.cn）拿到 `car-er.kuwo.cn` Range 206 健康可用——证明 qdy 拿到的 410 是其通道问题、非歌曲问题。**端到端实际不可播、零增量，判否删除，不接入** |
 
 ### 触发式待办（外部条件驱动，无条件不强行实现）
 
@@ -277,6 +281,8 @@
 |---|---|---|---|
 | v21.0/v21.1 | 歌词/封面覆盖扩展（tx/kg/mg 第三方歌词聚合/封面补全） | 实证可用稳定接口 | [ ] 待开发 |
 | tx 恢复 | 溯音QQ 平台解禁（`oiapi.net/api/QQ_Music` 连续 5 天 403，2026-11-01） | 上游修复 | [ ] 待开发 |
+| hyw 恢复 | HYWmusic 后端 `103.79.184.97` 502（脚本协议层无问题，2026-10-30） | 后端 nginx 上游恢复 200 | [ ] 待开发 |
+| qdy 通道恢复 | oiapi 转酷我 `kw-er.kuwo.cn` 签名链 410（接口 200 但产出死链，2026-10-30） | oiapi 修复 CDN 签名或换 car-er 通道 | [ ] 待开发 |
 
 ### 运维观察项（健康表持续监控，恶化即升级为迭代任务）
 
