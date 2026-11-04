@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v27.4 健康分10分制版**（`lx-source.js` 内 `@version 27.4`） |
+| 当前版本 | **v28 自动健康日报版**（`lx-source.js` 内 `@version 28`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v27.4**（当前） | 健康分 10 分制版：快照 `healthScore` 由 0~1 改 0~10（一位小数，如 8.5）——内部评分/排序/熔断逻辑不变，仅输出 ×10 换算，配合 App 健康面板直观显示；负分保留（异常源 App 标红） |
+| **v28**（当前） | 自动健康日报版：新增 `scripts/health-daily.js`——读 probe-history 按端点聚合近 7 日成功率/均时/连续失败天数，连续 3 天全失败或真故障率 >50% 自动生成摘除建议，输出 Markdown 日报到 `docs/health-daily/`；运行时逻辑同 v27.4 |
+| **v27.4** | 健康分 10 分制版：快照 `healthScore` 由 0~1 改 0~10（一位小数，如 8.5）——内部评分/排序/熔断逻辑不变，仅输出 ×10 换算，配合 App 健康面板直观显示；负分保留（异常源 App 标红） |
 | **v27.3** | 全面审计修复版：四源（溯音酷我/酷我官方/溯音咪咕/helloworldKw——含 v27.2 新源同源缺陷）内部缓存命中返回类型统一为裸 URL（旧返回包装对象被 validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败）；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退 + 补移动 UA（网易 detail 实测带 ids 参数顶层 picUrl 恒 null、封面在 album 字段）；probe.js 端点过滤正则悬空 `|` 恒真修复（补 kuwo 关键词保 helloworldKw 主通道纳入巡检）；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 |
 | **v27.2** | 候选 helloworld 实证接入版：生态扫描候选 helloworld 经全链端到端实证通过（2026-10-29：mock 宿主加载成功、kw flac/320k 真实返回 car-er.kuwo.cn 直链、Range 206 + `audio/x-flac` + 魔数 fLaC 校验通过），接入 kw 链与星海后端并列高音质竞速（convert_url_with_sign + haitangw v1 双通道，128k/320k/flac 三档，flac24bit 按服务器实际降级交付）；探测/开关/健康全链路注册 |
 | **v26.3** | 生态扫描制度化版：新增 `scripts/ecosystem-scan.js`（抓 pdone 每日健康表交叉对比，自动产出新候选/失效清单，控制台/--json 双模式），纳入迭代协议与测试清单；子源透出链音源侧冒烟覆盖确认（10+ 处 subSource 断言，防 b72/b73 回归） |
@@ -97,7 +98,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（v27 系列：6 候选实证全部收官（2026-10-30）——v27.1 fish ❌ 判否、**v27.2 helloworld ✅ 已接入**、v27.3 审计修复 ✅、v27.4 健康分10分制 ✅、v27.5 hyw ❌(后端502)、v27.6 jiexiang ⚠️(零增量留档)、v27.7 lx ❌(防搬运403)、v27.8 qdy ❌(410死链)，仅 helloworld 接入；下一步 v28：自动健康日报 ⬜（数据 160 行就绪）；v29 系列：两仓库协同（逐字歌词/平台降级/配置热更新/健康趋势图）⬜；v30 系列：三仓库播放链路协同（播放失败自动换源/无缝队列/体验自适应）⬜；v31 系列：跨仓库工程协同 ⬜；tx/hyw后端/qdy通道恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
+> 后续版本规划（v27 系列：6 候选实证全部收官（2026-10-30）——v27.1 fish ❌ 判否、**v27.2 helloworld ✅ 已接入**、v27.3 审计修复 ✅、v27.4 健康分10分制 ✅、v27.5 hyw ❌(后端502)、v27.6 jiexiang ⚠️(零增量留档)、v27.7 lx ❌(防搬运403)、v27.8 qdy ❌(410死链)，仅 helloworld 接入；**v28：自动健康日报 ✅ 已交付**（2026-11-04，probe-history 194 行就绪）；v29 系列：两仓库协同（逐字歌词/平台降级/配置热更新/健康趋势图）⬜；v30 系列：三仓库播放链路协同（播放失败自动换源/无缝队列/体验自适应）⬜；v31 系列：跨仓库工程协同 ⬜；tx/hyw后端/qdy通道恢复为触发式待办）见 [DEV_GUIDE.md 第七节](./DEV_GUIDE.md#七升级优化规划2026-10-29-实证重订)。
 
 ## 发布规范
 
