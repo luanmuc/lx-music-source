@@ -936,11 +936,7 @@ const FRAGMENT_RE = /(15\s*秒|0\.?\s*8x|片段|试听|demo|preview|teaser)/i;
 const PREVIEW_URL_RE = /(preview|test|sample|试听|片段|demo|teaser|clip)/i;
 function isPreviewFragmentUrl(url) {
   if (!url || typeof url !== "string") return false;
-  // 1. URL关键词检测
-  if (PREVIEW_URL_RE.test(url)) return true;
-  // 2. 酷我试听片段常见路径特征（/preview/、/test/、/sample/ 等）
-  if (/\/(preview|test|sample|clip)\//i.test(url)) return true;
-  return false;
+  return PREVIEW_URL_RE.test(url);
 }
 
 // v11.12 P0-4 (D4)：时长归一化到秒（兼容 ms/秒混用：>5000 视为毫秒）
