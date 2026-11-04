@@ -16,14 +16,14 @@
 
 | 部分 | 行段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 15~135 | 缓存/熔断/超时参数、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
-| ② 音源开关 + 健康探测 | 139~465 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
-| ③ 日志 + LRU 双层缓存 + 断路器 | 506~685 | `successCache`(6h/500) / `failCache`(5min/300)；熔断 3 次/3min + 半开试探 + 成功率/均时统计 + 健康分计算 |
-| ④ HTTP 封装 | 719~880 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
-| ⑤ 歌曲信息与匹配工具 | 884~1160 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
-| ⑥ 音源实现 | 1167~1600 | 19 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v27.2) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v18.0) / juheTx / juheWy / juheKg / juheMg(v18.1) / suyinMigu / changqingVip / nianxinVip |
-| ⑦ 注册表 + 调度 | 1606~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（前三源竞速 + 6s 整体超时 + 剩余串行）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
-| ⑧ 上报 + 事件监听 | 2068~2183 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ① 常量配置 | 42~135 | 缓存/熔断/超时参数、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
+| ② 音源开关 + 健康探测 | 137~500 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
+| ③ 日志 + LRU 双层缓存 + 断路器 | 502~715 | `successCache`(6h/500) / `failCache`(5min/300)；熔断 3 次/3min + 半开试探 + 成功率/均时统计 + 健康分计算 |
+| ④ HTTP 封装 | 717~821 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
+| ⑤ 歌曲信息与匹配工具 | 823~986 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
+| ⑥ 音源实现 | 987~1645 | 20 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v27.2) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v18.0) / juheTx / juheWy / juheKg / juheMg(v18.1) / suyinMigu / changqingVip / nianxinVip |
+| ⑦ 注册表 + 调度 | 1646~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（前三源竞速 + 6s 整体超时 + 剩余串行）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
+| ⑧ 上报 + 事件监听 | 2066~2183 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
 ## 三、核心机制详解
 

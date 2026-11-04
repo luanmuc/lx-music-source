@@ -49,10 +49,26 @@ jobs:
       - name: 端点巡检（Range 判定）
         # 存在失败端点时脚本 exit 2（信号），用 || true 不阻断写回——健康表需要记录失败状态
         run: node scripts/probe.js || true
+      - name: v28 健康日报生成（基于 probe-history 聚合）
+        run: node scripts/health-daily.js || true
       - name: 健康表写回（自动提交）
         run: |
           git config user.name 'luanmuc[bot]'
           git config user.email 'luanmuc@users.noreply.github.com'
-          git add README_HEALTH.md docs/probe-history.jsonl
-          git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录 [自动]" -q || echo "健康表无变化，跳过提交"
+          git add README_HEALTH.md docs/probe-history.jsonl docs/health-daily/
+          git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v28健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           git push origin HEAD:${GITHUB_REF_NAME} || echo "push 失败（无权限/冲突时忽略，巡检产物仍在 Actions 日志）"
+
+  # ---------- v26.3：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------
+  ecosystem:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    # 每周一 UTC 08:00（北京时间 16:00）跑一次生态扫描
+    # 注意：schedule 的每周触发和上面每日 probe 共用同一个 cron，这里用 if 区分只在周一跑
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 生态扫描（pdone 健康表交叉）
+        run: node scripts/ecosystem-scan.js || echo "生态扫描失败（网络/pdone 不可达时忽略）"
