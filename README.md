@@ -39,14 +39,13 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|
-| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ✅ / gdstudio.xyz ✅ |
-| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v12.0） | oiapi.net ✅；zddyr.top ✅；酷我官方 CDN ⚠️ 不稳（多路兜底已稀释） |
-| QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | 上游 oiapi.net ✅，接口 -403 待恢复（跟踪中） |
-| 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
-| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | 上游 api.xcvts.cn 域名 ✅（每日 200）但接口业务层 502（IP 封禁未解除，2026-10-29 实测）；**mg 真源恢复已判否**（含 Juhe mg 400），走跨平台兜底 |
+| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ✅；music.163.com ✅；music.163.com ✅；music-api.gdstudio.xyz ✅ |
+| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v12.0） | oiapi.net ✅；yy.zddyr.top ❌；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ✅ |
+| QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ✅ |
+| 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
+| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ✅ |
 
 > 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
-
 ## 版本历史
 
 | 版本 | 说明 |

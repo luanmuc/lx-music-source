@@ -23,6 +23,41 @@ const HIST_DIR = path.join(__dirname, '..', 'docs');
 const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
 const HISTORY_DAYS = 7; // v16.0：近 7 日成功率窗口
 
+// v29.5：平台映射表——用于自动生成 README.md 的"音源可用性"表格
+// 每个平台关联一组端点关键词（匹配 URL 子串），自动汇总状态
+const PLATFORM_MAP = [
+  {
+    name: '网易云 wy',
+    qualities: '128k / 320k / flac',
+    mainSources: '溯音163 / wyOuter / gdWy',
+    endpointKeys: ['oiapi.net/api/Music_163', 'music.163.com/api/song/lyric', 'music.163.com/api/song/detail', 'gdstudio.xyz'],
+  },
+  {
+    name: '酷我 kw',
+    qualities: '128k / 320k / flac',
+    mainSources: '溯音酷我 + 星海后端（双源 v12.0）',
+    endpointKeys: ['oiapi.net/api/Kuwo', 'zddyr.top', 'search.kuwo.cn', 'antiserver.kuwo.cn', 'nmobi.kuwo.cn'],
+  },
+  {
+    name: 'QQ tx',
+    qualities: '128k（走溯音酷我兜底）',
+    mainSources: '溯音QQ 关闭',
+    endpointKeys: ['oiapi.net/api/QQ_Music'],
+  },
+  {
+    name: '酷狗 kg',
+    qualities: '128k（走溯音酷我兜底）',
+    mainSources: '—',
+    endpointKeys: [], // 无独立源，走 kw 兜底
+  },
+  {
+    name: '咪咕 mg',
+    qualities: '128k（走溯音酷我兜底）',
+    mainSources: '溯音咪咕关闭',
+    endpointKeys: ['api.xcvts.cn/api/music/migu'],
+  },
+];
+
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const quick = args.includes('--quick');
@@ -179,5 +214,53 @@ function probeUrl(url, timeoutMs = 4000) {
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
   console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);
+
+  // v29.5：自动更新 README.md 里的"音源可用性"表格（日期 + 状态）
+  const README = path.join(__dirname, '..', 'README.md');
+  const readmeContent = fs.readFileSync(README, 'utf8');
+  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  // 根据巡检结果生成各平台的交叉验证列内容（按域名去重）
+  function buildCrossValidation(keys) {
+    if (!keys.length) return '—（无独立源，走 kw 兜底）';
+    const seen = new Set();
+    const parts = [];
+    for (const key of keys) {
+      const hit = results.find(r => r.url.includes(key));
+      if (hit) {
+        const domain = new URL(hit.url).hostname;
+        if (seen.has(domain)) continue; // 同一域名只显示一次
+        seen.add(domain);
+        parts.push(`${domain} ${hit.ok ? '✅' : '❌'}`);
+      }
+    }
+    return parts.join('；') || '—';
+  }
+
+  // 生成表格行
+  const tableRows = PLATFORM_MAP.map(p =>
+    `| ${p.name} | ${p.qualities} | ${p.mainSources} | ${buildCrossValidation(p.endpointKeys)} |`
+  ).join('\n');
+
+  // 替换 README.md 里的整段"音源可用性"表格（从标题到下一个 ## 之前）
+  const updatedReadme = readmeContent.replace(
+    /## 音源可用性（\d{4}-\d{2}-\d{2} 核验）[\s\S]*?(?=\n## )/,
+    `## 音源可用性（${todayStr} 核验）
+
+> 本表 = 本仓库实测基线 + 生态交叉验证；端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（\`scripts/probe.js\` 每日自动刷新）。
+> 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游域名可用但本机 IP 被封）。
+
+| 平台 | 可用音质 | 主路子源 | 交叉验证 |
+|---|---|---|---|
+${tableRows}
+
+> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
+  );
+
+  if (updatedReadme !== readmeContent) {
+    fs.writeFileSync(README, updatedReadme);
+    console.log(`已自动更新 README.md 音源可用性表格（日期 ${todayStr}）`);
+  }
+
   if (okCount < results.length) { console.log('存在失败端点，详见健康表'); process.exit(2); }
 })();
