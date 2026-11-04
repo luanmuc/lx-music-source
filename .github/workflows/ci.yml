@@ -9,15 +9,15 @@ on:
       - 'scripts/**'
       - '.github/workflows/**'
   schedule:
-    # v13.1：每日端点巡检，自动刷新健康表并写回仓库（UTC 06:00 ≈ 北京时间 14:00）
+    # v2.0：每日端点巡检，自动刷新健康表并写回仓库（UTC 06:00 ≈ 北京时间 14:00）
     - cron: '0 6 * * *'
   workflow_dispatch: {}   # 手动触发
-  # v16.2：发版后自动巡检，生成发布后基线健康表（含近7日成功率 + 死源建议）
+  # v4.0：发版后自动巡检，生成发布后基线健康表（含近7日成功率 + 死源建议）
   release:
     types: [published]
 
 jobs:
-  # ---------- v13.0：语法 + 冒烟测试 ----------
+  # ---------- v2.0：语法 + 冒烟测试 ----------
   test:
     runs-on: ubuntu-latest
     steps:
@@ -29,13 +29,13 @@ jobs:
         run: node --check lx-source.js
       - name: L1 冒烟测试（mock lx 宿主，24 组用例）
         run: node test/lx-source-smoke-test.js
-      # v23.1：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
+      # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js
       - name: 巡检脚本语法
         run: node --check scripts/probe.js
 
-  # ---------- v13.1：每日端点巡检 + 健康表写回 ----------
+  # ---------- v2.0：每日端点巡检 + 健康表写回 ----------
   probe:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
@@ -49,17 +49,17 @@ jobs:
       - name: 端点巡检（Range 判定）
         # 存在失败端点时脚本 exit 2（信号），用 || true 不阻断写回——健康表需要记录失败状态
         run: node scripts/probe.js || true
-      - name: v28 健康日报生成（基于 probe-history 聚合）
+      - name: v8.0 健康日报生成（基于 probe-history 聚合）
         run: node scripts/health-daily.js || true
       - name: 健康表写回（自动提交）
         run: |
           git config user.name 'luanmuc[bot]'
           git config user.email 'luanmuc@users.noreply.github.com'
           git add README_HEALTH.md docs/probe-history.jsonl docs/health-daily/
-          git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v28健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
+          git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           git push origin HEAD:${GITHUB_REF_NAME} || echo "push 失败（无权限/冲突时忽略，巡检产物仍在 Actions 日志）"
 
-  # ---------- v26.3：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------
+  # ---------- v7.0：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------
   ecosystem:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
