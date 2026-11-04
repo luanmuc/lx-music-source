@@ -427,11 +427,11 @@ function applyProbeResult(id, usable) {
   }
 }
 
-// v29.4：健康历史趋势记录（每次探测完成后存一条，保留最近 20 条）
+// v29.4：健康历史趋势记录（每次自动探测完成后存一条，保留最近 60 条≈10小时）
 const healthHistory = [];
-const HEALTH_HISTORY_MAX = 20;
+const HEALTH_HISTORY_MAX = 60;
 
-async function runHealthCheck() {
+async function runHealthCheck(saveHistory = true) {
   if (probeState.running) return;
   probeState.running = true;
   try {  // v25.3：try/finally——构建配置等任何异常都不会把 running 锁死（否则探测链永久停摆）
@@ -448,23 +448,24 @@ async function runHealthCheck() {
   }));
   const active = Object.keys(runtimeToggles).filter(k => runtimeToggles[k]);
   logInfo(`健康探测: 本轮完成，当前自动启用: ${active.join(", ")}`);
-  // v29.4：记录历史快照（用于趋势图）
-  const snap = getHealthSnapshot();
-  const historyEntry = {
-    timestamp: Date.now(),
-    sources: {}
-  };
-  for (const [id, item] of Object.entries(snap)) {
-    if (id.startsWith('_')) continue; // 跳过平台聚合等特殊字段
-    historyEntry.sources[id] = {
-      name: item.name,
-      score: item.healthScore,
-      successRate: item.successRate,
-      enabled: item.enabled
+  // v29.4：记录历史快照（用于趋势图）——v30.1：手动探测不存历史，避免污染趋势
+  if (saveHistory) {
+    const snap = getHealthSnapshot();
+    const historyEntry = {
+      timestamp: Date.now(),
+      sources: {}
     };
+    for (const [id, item] of Object.entries(snap)) {
+      if (id.startsWith('_')) continue; // 跳过平台聚合等特殊字段
+      // v30.1：只存趋势图需要的字段（score + successRate），去掉多余的 name/enabled
+      historyEntry.sources[id] = {
+        score: item.healthScore,
+        successRate: item.successRate
+      };
+    }
+    healthHistory.push(historyEntry);
+    if (healthHistory.length > HEALTH_HISTORY_MAX) healthHistory.shift();
   }
-  healthHistory.push(historyEntry);
-  if (healthHistory.length > HEALTH_HISTORY_MAX) healthHistory.shift();
   } catch (e) {
     logWarn(`健康探测异常: ${e && e.message ? e.message : String(e)}`);
   } finally {
@@ -564,6 +565,10 @@ function createLRUCache(maxSize, ttl) {
     getExpired(key) {
       const entry = map.get(key);
       return entry ? entry.value : null;
+    },
+    // v30.1：清空所有缓存（配置热更新时调用，让新 TTL 立即生效）
+    clear() {
+      map.clear();
     }
   };
 }
@@ -1676,15 +1681,21 @@ function getHealthSnapshot() {
       platformSummary[platform] = { degraded: false, reason: "no_active_sources" };
       continue;
     }
+    // v30.1：deadCount 加上 half-open 状态（半开试探中也算"可能还坏着"）
     const deadCount = activeSources.filter(id =>
-      snapshot[id].playDead || snapshot[id].sleeping || snapshot[id].state === "open"
+      snapshot[id].playDead || snapshot[id].sleeping ||
+      snapshot[id].state === "open" || snapshot[id].state === "half-open"
     ).length;
     const allDead = deadCount === activeSources.length;
-    platformSummary[platform] = { degraded: allDead, activeCount: activeSources.length, deadCount };
-    if (!allDead) healthyPlatforms.push(platform);
+    // v30.1：计算平台平均健康分（用于选兜底平台）
+    const avgScore = activeSources.reduce((sum, id) => sum + (snapshot[id].healthScore || 0), 0) / activeSources.length;
+    platformSummary[platform] = { degraded: allDead, activeCount: activeSources.length, deadCount, avgScore: Math.round(avgScore * 10) / 10 };
+    if (!allDead) healthyPlatforms.push({ platform, avgScore });
   }
   snapshot._platformSummary = platformSummary;
-  snapshot._fallbackPlatform = healthyPlatforms[0] || null;
+  // v30.1：兜底平台选健康分最高的（不再是第一个）
+  healthyPlatforms.sort((a, b) => b.avgScore - a.avgScore);
+  snapshot._fallbackPlatform = healthyPlatforms[0]?.platform || null;
   return snapshot;
 }
 
@@ -2162,11 +2173,12 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     return Promise.resolve({ id: target, enabled: next });
   }
   // v16.5：手动触发一轮健康探测（并发 ~6s；探测中返回 running:true 不排队）
+  // v30.1：手动探测不存历史快照（避免污染趋势图）
   if (action === "probe") {
     if (probeState.running) {
       return Promise.resolve({ running: true });
     }
-    return runHealthCheck().then(() => ({
+    return runHealthCheck(false).then(() => ({
       running: false,
       doneAt: Date.now(),
       round: globalThis.__probeRound || 0,
@@ -2194,15 +2206,61 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "maxConcurrency", "rateWindowMs", "rateWindowMax",
       "healthCheckIntervalMs", "raceOverallTimeoutMs", "raceMatchWaitMs",
       "allFailShortTtlMs", "playDeadReviveMs"];
+    // v30.1：每个参数的合理上下限（防极端值触发上游风控/雪崩）
+    const PARAM_LIMITS = {
+      cacheTtlMs: { max: 7 * 24 * 3600 * 1000 },        // 最大 7 天
+      failCacheNotFoundMs: { max: 24 * 3600 * 1000 },   // 最大 1 天
+      failCacheExpiredMs: { max: 3600 * 1000 },         // 最大 1 小时
+      breakerThreshold: { max: 20 },                      // 最大 20 次
+      breakerCooldownMs: { max: 30 * 60 * 1000 },       // 最大 30 分钟
+      rateLimitBackoffMs: { max: 5 * 60 * 1000 },       // 最大 5 分钟
+      maxConcurrency: { max: 5 },                          // 最大 5（单源并发，太大触发风控）
+      rateWindowMs: { max: 10 * 1000 },                  // 最大 10 秒
+      rateWindowMax: { max: 20 },                         // 最大 20 次
+      healthCheckIntervalMs: { min: 60 * 1000 },        // 最小 1 分钟（防频繁探测）
+      raceOverallTimeoutMs: { max: 15 * 1000 },         // 最大 15 秒
+      raceMatchWaitMs: { max: 5 * 1000 },               // 最大 5 秒
+      allFailShortTtlMs: { max: 10 * 60 * 1000 },       // 最大 10 分钟
+      playDeadReviveMs: { max: 2 * 3600 * 1000 },       // 最大 2 小时
+    };
     const updated = {};
     for (const [key, value] of Object.entries(info)) {
-      if (ALLOWED_KEYS.includes(key) && typeof value === "number" && value > 0) {
-        USER_CONFIG[key] = value;
-        updated[key] = value;
+      if (!ALLOWED_KEYS.includes(key)) continue;
+      if (typeof value !== "number" || value <= 0) continue;
+      // v30.1：上下限校验
+      const limits = PARAM_LIMITS[key];
+      if (limits) {
+        if (limits.min !== undefined && value < limits.min) continue;
+        if (limits.max !== undefined && value > limits.max) continue;
       }
+      USER_CONFIG[key] = value;
+      updated[key] = value;
     }
     logInfo(`[config] 热更新配置：${JSON.stringify(updated)}`);
-    return Promise.resolve({ updated, current: USER_CONFIG });
+    // v30.1：修改熔断阈值后，重置所有源的 failureCount——避免"突然熔断"
+    // （阈值从 3 改成 1 后，已累计 2 次失败的源下一次失败不会立即熔断）
+    if (updated.breakerThreshold !== undefined) {
+      for (const [, b] of breakers) {
+        b.failureCount = 0;
+      }
+      logInfo(`[config] 熔断阈值已更新，所有源失败计数已重置`);
+    }
+    // v30.1：修改缓存 TTL 后，清空所有缓存——让新 TTL 立即生效
+    if (updated.cacheTtlMs !== undefined) {
+      successCache.clear();
+      logInfo(`[config] 缓存 TTL 已更新，成功缓存已清空`);
+    }
+    // v30.1：返回 current 也脱敏（和读模式一致）
+    const { ikunApiKey, lingchuanApiKey, xinghaiDeviceId, ...safeConfig } = USER_CONFIG;
+    return Promise.resolve({
+      updated,
+      current: {
+        ...safeConfig,
+        ikunApiKey: ikunApiKey ? "***已设置***" : "",
+        lingchuanApiKey: lingchuanApiKey ? "***已设置***" : "",
+        xinghaiDeviceId: xinghaiDeviceId ? "***已设置***" : ""
+      }
+    });
   }
   // v29.4：健康趋势 action（返回历史健康快照数组，App 折线图展示）
   if (action === "trend") {
@@ -2237,7 +2295,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v29.4 健康趋势图版已加载（v29.4：新增 trend action 返回历史健康快照，App 趋势图展示健康分变化；v29.3 配置热更新），上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v29.5 审计修复版已加载（v29.5：配置写模式脱敏+上下限校验+熔断阈值重置失败计数+缓存TTL更新清缓存+手动探测不存历史+deadCount算half-open+兜底平台选健康分最高+历史快照60条精简字段），上报 ${Object.keys(sourceConfig).length} 个音源；v29.4 健康趋势图；v29.3 配置热更新；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
