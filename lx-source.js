@@ -457,6 +457,7 @@ async function runHealthCheck() {
   for (const [id, item] of Object.entries(snap)) {
     if (id.startsWith('_')) continue; // 跳过平台聚合等特殊字段
     historyEntry.sources[id] = {
+      name: item.name,
       score: item.healthScore,
       successRate: item.successRate,
       enabled: item.enabled
