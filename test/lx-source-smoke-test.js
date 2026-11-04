@@ -210,7 +210,7 @@ async function test(name, fn) {
   try { await requestUrl('kw', 'flac', { name: '404歌2', singer: '未知', duration: 180000, songmid: 'nf-check' }); } catch (e) { if (/熔断/.test(e.message)) nfHit = true; }
   assert.ok(!nfHit, '业务失败(404)不应触发熔断');
   delete globalThis.__lxSourceConfig;
-  // 说明：v26.1 起 3 次网络失败会同时触发播放摘除（buildSourceChain 层过滤，先于熔断可见）——摘除语义见 T31
+  // 说明：v7.0 起 3 次网络失败会同时触发播放摘除（buildSourceChain 层过滤，先于熔断可见）——摘除语义见 T31
 
   console.log('[T9] v14.0 失败原因结构化透出：聚合错误携带 code + detail 数组');
   resetMock();
@@ -534,7 +534,7 @@ async function test(name, fn) {
   assert.ok(openCount >= 1, `breakerThreshold=1 应至少熔断1源，实际 ${openCount}`);
   delete globalThis.__lxSourceConfig;
 
-  console.log('[T25] v24.0 音质协商链：flac→320k→128k 有序降档，实际交付音质记录');
+  console.log('[T25] v6.0 音质协商链：flac→320k→128k 有序降档，实际交付音质记录');
   // 重载音源清状态（T24 熔断污染）
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
@@ -551,7 +551,7 @@ async function test(name, fn) {
   const lastQs = Object.values(snapV25).map(x => x.lastQuality).filter(Boolean);
   assert.ok(lastQs.length >= 1, `应有源记录实际交付音质 lastQuality，实际 ${JSON.stringify(lastQs)}`);
 
-  console.log('[T26] v18.1 Juhe源族扩充：tx 303→vkeys→直链全链路，wy/kg/mg 四源注册');
+  console.log('[T26] v4.0 Juhe源族扩充：tx 303→vkeys→直链全链路，wy/kg/mg 四源注册');
   resetMock();
   // v6.0(A1)：Juhe 默认关闭（上游实测不可用）——本用例手动开启 juheTx 验证协议链路
   await requestHandler({ action: 'toggle', source: 'tx', info: { id: 'juheTx', enabled: true } });
@@ -580,8 +580,8 @@ async function test(name, fn) {
     assert.ok(snapV26[id], `快照应含 ${id} 新源族`);
   }
 
-  console.log('[T27] v25.6 并发保护回归：单源并发超限被节流跳过，不误记限流/不污染成功率');
-  // v25.6：T27 重载模块清状态（前序 T24 熔断注入/探测累积会污染 inflight 与计数——测试独立性）
+  console.log('[T27] v6.0 并发保护回归：单源并发超限被节流跳过，不误记限流/不污染成功率');
+  // v6.0：T27 重载模块清状态（前序 T24 熔断注入/探测累积会污染 inflight 与计数——测试独立性）
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
   const savedConsole27 = globalThis.console;
@@ -613,7 +613,7 @@ async function test(name, fn) {
   const kwStat = after27.suyinKuwo;
   assert.ok(kwStat.successRate >= 0.5, `节流跳过不应污染成功率，suyinKuwo successRate=${kwStat.successRate}`);
 
-  console.log('[T28] v25.6 熔断跳过不记限流 + CDN410走LINK_EXPIRED(1min差异化缓存)');
+  console.log('[T28] v6.0 熔断跳过不记限流 + CDN410走LINK_EXPIRED(1min差异化缓存)');
   // 熔断跳过语义：breakerThreshold=1 + netfail → 熔断 → 再请求 → rateLimitCount 不增
   globalThis.__lxSourceConfig = { breakerThreshold: 1, allFailShortTtlMs: 0 };
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
@@ -652,7 +652,7 @@ async function test(name, fn) {
   assert.ok(cntAfter === cntBefore, `410应写1min失败缓存(二次请求不重试)，前${cntBefore} 后${cntAfter}`);
   assert.ok(f2 && /LINK_EXPIRED|已知失败/.test(f2.message), `二次请求应命中失败缓存，实际 ${f2 && f2.message}`);
 
-  console.log('[T29] v25.7 探测清单过滤：默认关闭/手动关闭源不探测，自动关闭源保留探测(自愈闭环)');
+  console.log('[T29] v6.0 探测清单过滤：默认关闭/手动关闭源不探测，自动关闭源保留探测(自愈闭环)');
   // 纯函数级断言（避免多实例后台探测定时器共享 __probeRound 干扰轮次）
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
@@ -678,7 +678,7 @@ async function test(name, fn) {
   pcfg = modV29.buildProbeConfig();
   assert.ok('suyinKuwo' in pcfg, '自动关闭源应保留在探测清单(自愈前提)');
 
-  console.log('[T30] v26.0 音源日志增强：失败明细 logInfo 输出(逐源 code+reason) + 竞速决策打点');
+  console.log('[T30] v7.0 音源日志增强：失败明细 logInfo 输出(逐源 code+reason) + 竞速决策打点');
   // 加载：注入 logDebug=true + console 捕获 → 全失败场景 → 断言日志行
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
@@ -702,7 +702,7 @@ async function test(name, fn) {
   // 断言3：聚合错误 detail 数组透出（App 失败原因展示）
   assert.ok(Array.isArray(t30Err && t30Err.detail) && t30Err.detail.length >= 2, '聚合错误应带结构化 detail');
 
-  console.log('[T31] v26.1 自动摘死源：播放连续失败摘除出链 + 快照 playDead + 探测/半开试探复活');
+  console.log('[T31] v7.0 自动摘死源：播放连续失败摘除出链 + 快照 playDead + 探测/半开试探复活');
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
   globalThis.__lxSourceConfig = { logDebug: false, breakerThreshold: 100, playDeadReviveMs: 60000, maxConcurrency: 100, rateWindowMax: 1000 };
