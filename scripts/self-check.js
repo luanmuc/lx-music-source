@@ -46,6 +46,10 @@ for (const plat of ['wy', 'tx', 'kw', 'kg', 'mg']) {
 for (const act of ['health', 'toggle', 'probe']) {
   if (!actionBlock.includes(act)) fail('sourceConfig 构建块缺少 ' + act);
 }
+// v29.9：补 config / trend action 检查（v29.3/v29.4 新增，旧自检漏检）
+for (const act of ['config', 'trend']) {
+  if (!actionBlock.includes(act)) fail('sourceConfig 构建块缺少 ' + act);
+}
 if (!actionBlock.includes('lyric')) fail('wy 歌词 action 声明缺失');
 if (!actionBlock.includes('"musicUrl"')) fail('musicUrl 基础 action 缺失');
 
