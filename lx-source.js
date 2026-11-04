@@ -1656,7 +1656,7 @@ function getHealthSnapshot() {
       continue;
     }
     const deadCount = activeSources.filter(id =>
-      snapshot[id].playDead || snapshot[id].sleeping || snapshot[id].state === "fail"
+      snapshot[id].playDead || snapshot[id].sleeping || snapshot[id].state === "open"
     ).length;
     const allDead = deadCount === activeSources.length;
     platformSummary[platform] = { degraded: allDead, activeCount: activeSources.length, deadCount };
