@@ -1661,7 +1661,7 @@ function getHealthSnapshot() {
   }
   // v29.2：平台级降级聚合（按平台分组子源，判断某平台全部启用子源是否失效）
   const PLATFORM_GROUPS = {
-    wy: ["gdWy", "wyOuter", "suyin163"],
+    wy: ["gdWy", "wyOuter", "suyin163", "juheWy"],
     kw: ["kuwoOfficial", "helloworldKw", "xinghaiBackend", "changqingVip", "nianxinVip", "suyinKuwo", "juheKw"],
     tx: ["suyinQQ", "juheTx"],
     mg: ["suyinMigu", "juheMg"],
