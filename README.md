@@ -101,7 +101,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
 > 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
-> 后续版本规划（**终极版本三层目标**：第一层"够用了"✅ 已完成 v12~v29；第二层"省心了"🔄 当前主线 v30.x——提前预警/跨仓库一致性门/播放失败自动换源/弱网自适应/无缝播放队列；第三层"完美了"🔮 远期目标 v31.x——智能选源/零配置/自动发现/自动修复/AI 驱动优化）见 [ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md)。
+> 后续版本规划（**终极版本三层目标**：第一层"够用了"✅ 已完成 v12~v29；第二层"省心了"✅ 核心功能已达成——v30.0 提前预警已实现，其余版本全部放弃（重复造轮子/成本>收益）；第三层"完美了"🔮 价值都不大，暂时不用做）见 [ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md)。
 
 ## 发布规范
 
