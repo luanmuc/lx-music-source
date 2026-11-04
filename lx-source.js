@@ -2315,7 +2315,7 @@ send(EVENT_NAMES.inited, {
 // v16.5.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v29.5 审计修复版已加载（v29.5：配置写模式脱敏+上下限校验+熔断阈值重置失败计数+缓存TTL更新清缓存+手动探测不存历史+deadCount算half-open+兜底平台选健康分最高+历史快照60条精简字段），上报 ${Object.keys(sourceConfig).length} 个音源；v29.4 健康趋势图；v29.3 配置热更新；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v29.7 已加载（v29.7：helloworld试听片段修复——降优先级+URL关键词检测；v29.6：巡检脚本10项优化；v29.5：深度交叉点审计修复），上报 ${Object.keys(sourceConfig).length} 个音源；v16.3 health action(App健康面板)；v15.0歌词/封面透出；v14.0失败原因结构化+健康自愈；v13.4配置化(USER_CONFIG)；保留v12.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
