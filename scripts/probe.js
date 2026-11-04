@@ -22,6 +22,13 @@ const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
 const HIST_DIR = path.join(__dirname, '..', 'docs');
 const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
 const HISTORY_DAYS = 7; // v16.0：近 7 日成功率窗口
+const CONCURRENCY = 5; // v29.6：并发池——同时最多 5 个请求，避免被风控封 IP
+const DEAD_STREAK_THRESHOLD = 3; // v16.1：连续失败天数阈值
+const UA_POOL = [ // v29.6：UA 池轮换，降低被风控概率
+  'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'lx-source-probe/1.0',
+];
 
 // v29.5：平台映射表——用于自动生成 README.md 的"音源可用性"表格
 // 每个平台关联一组端点关键词（匹配 URL 子串），自动汇总状态
@@ -119,7 +126,6 @@ function aggregateHistory() {
 }
 
 // v16.1：死源建议阈值——连续失败天数 ≥ 该值即建议关闭（写回健康表留档，供迭代时摘除）
-const DEAD_STREAK_THRESHOLD = 3;
 function collectDeadSources(hist, results) {
   const dead = [];
   const urlByResult = new Map(results.map(r => [r.url, r]));
@@ -148,24 +154,50 @@ function extractEndpoints(src) {
   return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${'));
 }
 
-// ---- 单端点探测（GET + Range 0-1023，2s 超时）----
-function probeUrl(url, timeoutMs = 4000) {
+// v29.6：并发池——限制同时最多 N 个请求，避免被上游风控
+async function poolRun(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+    while (i < tasks.length) {
+      const idx = i++;
+      results[idx] = await tasks[idx]();
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+// ---- 单端点探测（GET + Range 0-1023，4s 超时，失败重试 1 次）----
+function probeUrl(url, timeoutMs = 4000, retry = true) {
   return new Promise(resolve => {
     let lib;
     try { lib = new URL(url).protocol === 'https:' ? https : http; }
     catch (e) { return resolve({ url, ok: false, status: 0, time: 0, reason: 'INVALID_URL' }); }
     const start = Date.now();
-    const req = lib.get(url, { headers: { 'User-Agent': 'lx-source-probe/1.0', 'Range': 'bytes=0-1023' }, timeout: timeoutMs }, res => {
+    const ua = UA_POOL[Math.floor(Math.random() * UA_POOL.length)];
+    const req = lib.get(url, { headers: { 'User-Agent': ua, 'Range': 'bytes=0-1023' }, timeout: timeoutMs }, res => {
       const status = res.statusCode || 0;
-      const ct = String(res.headers['content-type'] || '');
       res.resume();
+      // v29.6：403/429 不算可用——被封/限流等于不能用
       const ok = quick
-        ? (status >= 200 && status < 500)
-        : (status === 206 || (status >= 200 && status < 400)); // API 端点 2xx/3xx 即可用；音频 206/200 亦可用
+        ? (status >= 200 && status < 400) // quick 模式：2xx/3xx 可用，4xx/5xx 不可用
+        : (status === 206 || (status >= 200 && status < 400));
       resolve({ url, ok, status, time: Date.now() - start, reason: ok ? 'OK' : `HTTP ${status}` });
     });
-    req.on('timeout', () => { req.destroy(); resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: 'TIMEOUT' }); });
-    req.on('error', e => resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: e.code || 'ERR' }));
+    req.on('timeout', () => {
+      req.destroy();
+      // v29.6：超时重试 1 次（减少网络抖动误判）
+      if (retry) return resolve(probeUrl(url, timeoutMs, false));
+      resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: 'TIMEOUT' });
+    });
+    req.on('error', e => {
+      // v29.6：网络错误重试 1 次
+      if (retry && (e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.code === 'ENOTFOUND')) {
+        return resolve(probeUrl(url, timeoutMs, false));
+      }
+      resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: e.code || 'ERR' });
+    });
   });
 }
 
@@ -174,7 +206,8 @@ function probeUrl(url, timeoutMs = 4000) {
   const endpoints = extractEndpoints(src);
   if (!endpoints.length) { console.error('未提取到端点'); process.exit(1); }
 
-  const results = await Promise.all(endpoints.map(u => probeUrl(u)));
+  // v29.6：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
+  const results = await poolRun(endpoints.map(u => () => probeUrl(u)), CONCURRENCY);
   const okCount = results.filter(r => r.ok).length;
 
   if (asJson) {
@@ -187,6 +220,25 @@ function probeUrl(url, timeoutMs = 4000) {
   const today = appendHistory(results);
   const hist = aggregateHistory();
   const dead = collectDeadSources(hist, results);
+
+  // v29.6：平台级健康汇总——按 PLATFORM_MAP 分组统计
+  function platformSummary() {
+    const lines = [];
+    lines.push('### 平台健康汇总');
+    lines.push('');
+    for (const p of PLATFORM_MAP) {
+      if (!p.endpointKeys.length) {
+        lines.push(`- **${p.name}**：无独立源，走 kw 兜底`);
+        continue;
+      }
+      const hits = p.endpointKeys.map(k => results.find(r => r.url.includes(k))).filter(Boolean);
+      const okHits = hits.filter(r => r.ok);
+      const emoji = okHits.length === hits.length ? '🟢' : okHits.length > 0 ? '🟡' : '🔴';
+      lines.push(`- ${emoji} **${p.name}**：${okHits.length}/${hits.length} 端点可用`);
+    }
+    return lines.join('\n');
+  }
+
   const lines = [];
   lines.push('# 端点健康表（自动巡检）');
   lines.push('');
@@ -194,12 +246,16 @@ function probeUrl(url, timeoutMs = 4000) {
   lines.push('');
   lines.push(`共提取 ${results.length} 个端点，可用 ${okCount} 个；近 ${HISTORY_DAYS} 日成功率基于 \`docs/probe-history.jsonl\` 历史（${today} 追加）。`);
   lines.push('');
+  lines.push(platformSummary());
+  lines.push('');
   lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 近7日成功率 | 说明 |');
   lines.push('|---|---|---|---|---|---|');
   for (const r of results) {
-    const tag = r.ok ? '✅ 可用' : '❌ 失败';
-    const reason = r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason;
+    // v29.6：恢复标记——历史有失败但当前恢复了，加 🟡 "已恢复观察中"
     const h = hist[r.url];
+    let tag = r.ok ? '✅ 可用' : '❌ 失败';
+    if (r.ok && h && h.streak > 0) tag = '🟡 已恢复观察中';
+    const reason = r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason;
     const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
     lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);
   }
@@ -208,19 +264,50 @@ function probeUrl(url, timeoutMs = 4000) {
     lines.push('');
     lines.push(`## ⚠️ 死源建议（连续 ${DEAD_STREAK_THRESHOLD} 天以上失败，供迭代时摘除/留档）`);
     lines.push('');
+    // v29.6：按平台分组——紧急（主路全挂）vs 次要（备用源挂）
+    const urgent = [];
+    const minor = [];
     for (const d of dead) {
-      lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
+      const platform = PLATFORM_MAP.find(p => p.endpointKeys.some(k => d.url.includes(k)));
+      if (platform) {
+        // 主路端点（第一个 key）失败算紧急，其他算次要
+        if (d.url.includes(platform.endpointKeys[0])) urgent.push(d);
+        else minor.push(d);
+      } else {
+        minor.push(d);
+      }
+    }
+    if (urgent.length) {
+      lines.push('### 🔴 紧急（主路端点连续失败）');
+      lines.push('');
+      for (const d of urgent) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
+      lines.push('');
+    }
+    if (minor.length) {
+      lines.push('### 🟡 次要（备用/边缘端点连续失败）');
+      lines.push('');
+      for (const d of minor) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
     }
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
   console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);
 
-  // v29.5：自动更新 README.md 里的"音源可用性"表格（日期 + 状态）
+  // v29.6：自动更新 README.md 里的"音源可用性"表格（日期 + 状态 + 原因标注）
   const README = path.join(__dirname, '..', 'README.md');
   const readmeContent = fs.readFileSync(README, 'utf8');
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-  // 根据巡检结果生成各平台的交叉验证列内容（按域名去重）
+  // v29.6：原因标注——把 HTTP 状态码翻译成可读的原因
+  function reasonLabel(status, reason) {
+    if (status === 403) return '403 被封';
+    if (status === 429) return '429 限流';
+    if (reason === 'ENOTFOUND') return '域名失效';
+    if (reason === 'TIMEOUT') return '超时不稳定';
+    if (reason === 'OK') return '正常';
+    return reason || '-';
+  }
+
+  // 根据巡检结果生成各平台的交叉验证列内容（按域名去重 + 原因标注）
   function buildCrossValidation(keys) {
     if (!keys.length) return '—（无独立源，走 kw 兜底）';
     const seen = new Set();
@@ -231,7 +318,8 @@ function probeUrl(url, timeoutMs = 4000) {
         const domain = new URL(hit.url).hostname;
         if (seen.has(domain)) continue; // 同一域名只显示一次
         seen.add(domain);
-        parts.push(`${domain} ${hit.ok ? '✅' : '❌'}`);
+        const label = hit.ok ? '✅' : `❌ ${reasonLabel(hit.status, hit.reason)}`;
+        parts.push(`${domain} ${label}`);
       }
     }
     return parts.join('；') || '—';
@@ -262,5 +350,20 @@ ${tableRows}
     console.log(`已自动更新 README.md 音源可用性表格（日期 ${todayStr}）`);
   }
 
-  if (okCount < results.length) { console.log('存在失败端点，详见健康表'); process.exit(2); }
+  // v29.6：退出码优化——只有"某平台主路全挂"才 exit(2)，单个备用源失败不退出
+  // 避免每天 CI 都是红色的，用户麻木了反而忽略真正紧急的问题
+  const allPlatformsDown = PLATFORM_MAP.every(p => {
+    if (!p.endpointKeys.length) return false; // 没有独立源的平台跳过
+    return p.endpointKeys.every(key => {
+      const hit = results.find(r => r.url.includes(key));
+      return hit && !hit.ok;
+    });
+  });
+  if (allPlatformsDown) {
+    console.log('❌ 所有平台主路都不可用——紧急！');
+    process.exit(2);
+  }
+  if (okCount < results.length) {
+    console.log(`⚠️ 有 ${results.length - okCount} 个端点失败（非全挂，不阻断 CI）`);
+  }
 })();
