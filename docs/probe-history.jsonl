@@ -260,3 +260,20 @@
 {"date":"2026-11-04","url":"https://api.ikunshare.com","ok":false,"status":0,"time":5,"reason":"ENOTFOUND"}
 {"date":"2026-11-04","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":41,"reason":"HTTP 404"}
 {"date":"2026-11-04","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":133,"reason":"HTTP 404"}
+{"date":"2026-11-04","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":true,"status":200,"time":831,"reason":"OK"}
+{"date":"2026-11-04","url":"https://music-dl.sayqz.com/api/","ok":false,"status":0,"time":39,"reason":"ENOTFOUND"}
+{"date":"2026-11-04","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":403,"time":125,"reason":"HTTP 403"}
+{"date":"2026-11-04","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":149,"reason":"OK"}
+{"date":"2026-11-04","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":151,"reason":"OK"}
+{"date":"2026-11-04","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":200,"time":173,"reason":"OK"}
+{"date":"2026-11-04","url":"https://lxmusicapi.onrender.com","ok":true,"status":200,"time":1050,"reason":"OK"}
+{"date":"2026-11-04","url":"https://api.music.lerd.dpdns.org","ok":false,"status":429,"time":765,"reason":"HTTP 429"}
+{"date":"2026-11-04","url":"https://api.lingchuan.com/v1","ok":false,"status":0,"time":5,"reason":"ENOTFOUND"}
+{"date":"2026-11-04","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":404,"reason":"OK"}
+{"date":"2026-11-04","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":122,"reason":"OK"}
+{"date":"2026-11-04","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":56,"reason":"OK"}
+{"date":"2026-11-04","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":69,"reason":"OK"}
+{"date":"2026-11-04","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":35,"reason":"OK"}
+{"date":"2026-11-04","url":"https://api.ikunshare.com","ok":false,"status":0,"time":5,"reason":"ENOTFOUND"}
+{"date":"2026-11-04","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":72,"reason":"HTTP 404"}
+{"date":"2026-11-04","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":97,"reason":"HTTP 404"}
