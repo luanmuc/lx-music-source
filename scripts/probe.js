@@ -28,11 +28,27 @@ const asJson = args.includes('--json');
 const quick = args.includes('--quick');
 
 // v16.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
+// v28.1：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
+const HISTORY_RETENTION_DAYS = 30;
 function appendHistory(results) {
   const date = new Date().toISOString().slice(0, 10);
   const lines = results.map(r => JSON.stringify({ date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason }));
   if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
   fs.appendFileSync(HIST_FILE, lines.join('\n') + '\n');
+  // v28.1：清理 30 天前的旧数据
+  const cutoff = new Date(Date.now() - HISTORY_RETENTION_DAYS * 864e5).toISOString().slice(0, 10);
+  const allLines = fs.readFileSync(HIST_FILE, 'utf8').split('\n').filter(l => l.trim());
+  const kept = [];
+  for (const line of allLines) {
+    try {
+      const r = JSON.parse(line);
+      if (r.date >= cutoff) kept.push(line);
+    } catch (e) { kept.push(line); } // 解析失败的行保留（防丢数据）
+  }
+  if (kept.length < allLines.length) {
+    fs.writeFileSync(HIST_FILE, kept.join('\n') + '\n');
+    console.log(`历史清理：${allLines.length} 行 → ${kept.length} 行（删除 ${allLines.length - kept.length} 行 ${HISTORY_RETENTION_DAYS} 天前旧数据）`);
+  }
   return date;
 }
 

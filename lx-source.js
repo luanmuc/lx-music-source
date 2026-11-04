@@ -508,7 +508,7 @@ const safeConsole = {
   warn: (typeof console !== "undefined" && typeof console.warn === "function") ? console.warn.bind(console) : () => {},
   error: (typeof console !== "undefined" && typeof console.error === "function") ? console.error.bind(console) : () => {},
 };
-const LOG_ENABLED = true;
+const LOG_ENABLED = (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.logEnabled !== undefined) ? !!globalThis.__lxSourceConfig.logEnabled : true;
 // v12.2：debug 级源级决策日志（默认关；排查时改 LOG_DEBUG=true 或宿主注入 __lxSourceConfig.logDebug=true）
 const LOG_DEBUG = (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.logDebug) || false;
 function logInfo(...args) { if (LOG_ENABLED) safeConsole.log("[聚合音源][信息]", ...args); }

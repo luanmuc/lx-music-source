@@ -169,6 +169,20 @@ function main() {
   fs.writeFileSync(outPath, report);
   console.log(`✅ 日报已生成: ${outPath}`);
   console.log(`   ${results.length} 个端点，${results.filter(r => r.shouldFlag).length} 个建议摘除`);
+
+  // v28.1：90 天滚动清理——只保留近 90 天日报，防止文件无限堆积
+  const RETENTION_DAYS = 90;
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 864e5);
+  const oldFiles = fs.readdirSync(OUT_DIR)
+    .filter(f => f.endsWith('.md') && f !== path.basename(outPath))
+    .filter(f => {
+      const d = new Date(f.replace('.md', ''));
+      return !isNaN(d) && d < cutoff;
+    });
+  for (const f of oldFiles) {
+    fs.unlinkSync(path.join(OUT_DIR, f));
+  }
+  if (oldFiles.length) console.log(`   清理 ${oldFiles.length} 个 ${RETENTION_DAYS} 天前旧日报`);
 }
 
 main();
