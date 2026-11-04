@@ -2240,7 +2240,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     // v30.1：修改熔断阈值后，重置所有源的 failureCount——避免"突然熔断"
     // （阈值从 3 改成 1 后，已累计 2 次失败的源下一次失败不会立即熔断）
     if (updated.breakerThreshold !== undefined) {
-      for (const [, b] of breakers) {
+      for (const [, b] of breakerMap) {
         b.failureCount = 0;
       }
       logInfo(`[config] 熔断阈值已更新，所有源失败计数已重置`);
