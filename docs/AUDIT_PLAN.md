@@ -34,7 +34,7 @@
 | A11 | 缓存系统 | TTL/键策略/失败缓存差异化/过期兜底 | ✅ | 成功 6h + 失败按错误码差异化 TTL |
 | A12 | 降级链与竞速回退 | raceFirst/fallbackRace/6s超时/音质优先 | ✅ | 前三源竞速 + 剩余串行 + 过期兜底 |
 | A13 | 并发安全 | 多请求同时操作同一 sourceId Map 有无竞态；熔断状态切换原子性 | ✅ | JS 单线程同步操作；half-open 只放行一个试探请求；inflightCount finally 统一释放 |
-| A14 | 日志系统 | logDebug/logInfo/logWarn/logError 开关逻辑/输出去向/safeConsole 边界 | ⚠️ | safeConsole 三级兜底完善；LOG_DEBUG 可配置；LOG_ENABLED 硬编码 true（影响小） |
+| A14 | 日志系统 | logDebug/logInfo/logWarn/logError 开关逻辑/输出去向/safeConsole 边界 | ✅ | safeConsole 三级兜底完善；LOG_DEBUG 可配置；LOG_ENABLED 已改可配置（__lxSourceConfig.logEnabled，缺省 true） |
 | A15 | URL 清洗与安全 | 返回 URL 是否清洗恶意参数/防注入/HTTPS 升级覆盖 | ✅ | validateUrl 格式校验 + upgradeToHttps 协议升级；无注入风险（播放器只发 HTTP 请求） |
 
 ## B 组：脚本（4 个，549 行）
@@ -75,8 +75,8 @@
 
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
-| F1 | probe-history.jsonl 增长 | 历史文件会不会无限增长？清理策略？ | ⚠️ | 无清理策略，每天约19行；聚合只取近7天但文件不truncate旧数据；建议30天滚动清理（低优先级） |
-| F2 | health-daily 输出目录 | 日报文件会不会无限堆积？保留策略？ | ⚠️ | 每天1个文件约3.5KB，一年约1.3MB；无清理策略；建议保留近90天 |
+| F1 | probe-history.jsonl 增长 | 历史文件会不会无限增长？清理策略？ | ✅ | v28.1 已加 30 天滚动清理（appendHistory 后过滤旧行重写文件） |
+| F2 | health-daily 输出目录 | 日报文件会不会无限堆积？保留策略？ | ✅ | v28.1 已加 90 天保留清理（生成日报后删除旧文件） |
 | F3 | README_HEALTH.md 格式 | 表格格式/列宽/特殊字符转义 | ✅ | 6列一致，长URL截断，emoji/反引号正常显示 |
 | F4 | license/版权合规 | 20 个子源 API 是否有版权风险 | ✅ | 非官方项目无LICENSE（合理）；只是API工具不存储音乐，版权风险低 |
 
