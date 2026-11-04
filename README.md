@@ -16,7 +16,7 @@
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
 | 发布入口 | 本仓库 **Releases 页**：每次迭代出 tag + 附 `lx-source.js` 产物 |
-| 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [AGENTS.md](./AGENTS.md) |
+| 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
 ## 在线导入（自定义源）
 
@@ -45,7 +45,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | — |
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | 上游 api.xcvts.cn 域名 ✅（每日 200）但接口业务层 502（IP 封禁未解除，2026-10-29 实测）；**mg 真源恢复已判否**（含 Juhe mg 400），走跨平台兜底 |
 
-> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./DEV_GUIDE.md)。
+> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
 
 ## 版本历史
 
@@ -101,15 +101,15 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 | v11.9 | 音频可播性二次校验（Range 取 1KB，206/200 音频判定）；长青/念心 kw 302 直链恢复；溯音酷我签名 URL Range 校验 |
 | v11.8 | 音源健康探测并发化（一轮 ~6s）；源级 `maxQuality` 音质过滤；`fallbackRace` 竞速 + 6s 整体超时；缓存 key 加 songId 维度；音质等级数值化 |
 
-> 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./DEV_GUIDE.md)**。
+> 完整深度分析、模块地图、已知缺陷与升级规划见 **[DEV_GUIDE.md](./docs/DEV_GUIDE.md)**。
 > 后续版本规划（**终极版本三层目标**：第一层"够用了"✅ 已完成 v12~v29；第二层"省心了"✅ 核心功能已达成——v30.0 提前预警已实现，其余版本全部放弃（重复造轮子/成本>收益）；第三层"完美了"🔮 价值都不大，暂时不用做）见 [ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md)。
 
 ## 发布规范
 
-> 完整发布 SOP（改 `@version` → 实测 → 提交 → Release → 联动 App）见 [DEV_GUIDE.md 第九节](./DEV_GUIDE.md#九发布-sop每次迭代必须走完)，本表只列红线。
+> 完整发布 SOP（改 `@version` → 实测 → 提交 → Release → 联动 App）见 [DEV_GUIDE.md 第九节](./docs/DEV_GUIDE.md#九发布-sop每次迭代必须走完)，本表只列红线。
 
 1. 每次迭代**必须**更新 `lx-source.js` 文件头 `@version` 与 `@description`（写明本轮变更与实测结论）；
-2. 发布前必须跑完 [DEV_GUIDE.md 测试清单](./DEV_GUIDE.md#八测试清单发布前必做)；
+2. 发布前必须跑完 [DEV_GUIDE.md 测试清单](./docs/DEV_GUIDE.md#八测试清单发布前必做)；
 3. 需要 App 换新音源时，用 `workflow_dispatch` 触发 `lx-music-mobile` 的 release.yml 构建（push 空提交亦可）。
 
 ## 已知失效/关闭源（保留函数便于恢复）
