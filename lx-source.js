@@ -1639,6 +1639,31 @@ function getHealthSnapshot() {
       healthScore: Number((score.score * 10).toFixed(1))
     };
   }
+  // v29.2：平台级降级聚合（按平台分组子源，判断某平台全部启用子源是否失效）
+  const PLATFORM_GROUPS = {
+    wy: ["gdWy", "wyOuter", "suyin163"],
+    kw: ["kuwoOfficial", "helloworldKw", "xinghaiBackend", "changqingVip", "nianxinVip", "suyinKuwo", "juheKw"],
+    tx: ["suyinQQ", "juheTx"],
+    mg: ["suyinMigu", "juheMg"],
+    kg: ["juheKg"]
+  };
+  const platformSummary = {};
+  const healthyPlatforms = [];
+  for (const [platform, sourceIds] of Object.entries(PLATFORM_GROUPS)) {
+    const activeSources = sourceIds.filter(id => snapshot[id] && snapshot[id].enabled);
+    if (!activeSources.length) {
+      platformSummary[platform] = { degraded: false, reason: "no_active_sources" };
+      continue;
+    }
+    const deadCount = activeSources.filter(id =>
+      snapshot[id].playDead || snapshot[id].sleeping || snapshot[id].state === "fail"
+    ).length;
+    const allDead = deadCount === activeSources.length;
+    platformSummary[platform] = { degraded: allDead, activeCount: activeSources.length, deadCount };
+    if (!allDead) healthyPlatforms.push(platform);
+  }
+  snapshot._platformSummary = platformSummary;
+  snapshot._fallbackPlatform = healthyPlatforms[0] || null;
   return snapshot;
 }
 

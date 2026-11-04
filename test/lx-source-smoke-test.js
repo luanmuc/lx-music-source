@@ -354,6 +354,7 @@ async function test(name, fn) {
   assert.ok(snap && typeof snap === 'object', '应返回快照对象');
   assert.ok(Object.keys(snap).length >= 14, `应覆盖全部源，实际${Object.keys(snap).length}个`);
   for (const id of Object.keys(snap)) {
+    if (id.startsWith('_')) continue; // v29.2：平台聚合等特殊字段，不参与子源校验
     const s = snap[id];
     assert.ok(typeof s.name === 'string' && s.name.length > 0, `${id} 缺 name`);
     assert.ok(typeof s.enabled === 'boolean', `${id} 缺 enabled`);
