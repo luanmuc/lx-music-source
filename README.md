@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v29.5 深度审计修复版**（`lx-source.js` 内 `@version 29.5`） |
+| 当前版本 | **v29.6 巡检脚本优化版**（`lx-source.js` 内 `@version 29.6`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -50,7 +50,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v29.5**（当前） | 深度交叉点审计修复版：配置写模式返回 current 脱敏（和读模式一致）；配置热更新加 PARAM_LIMITS 上下限校验（14 个参数各有合理上下限）；修改熔断阈值后重置所有源 failureCount（避免"突然熔断"）；修改缓存 TTL 后清空 successCache（新 TTL 立即生效）；手动探测不存历史快照（避免污染趋势）；deadCount 加上 half-open 状态（半开试探中也算"可能还坏着"）；兜底平台选健康分最高的（按 avgScore 排序）；历史快照上限 20→60 条（≈10 小时趋势）；历史快照去掉 name/enabled 冗余字段；breakers → breakerMap 变量名拼写错误修复 |
+| **v29.6**（当前） | 巡检脚本优化版：probe.js 10 项全面优化——并发池限流（同时最多 5 个请求，避免被风控）；403/429 判定修正（被封/限流算失败，不再误判为可用）；CI 退出码分级（只有全平台主路全挂才 exit(2)，单个备用源失败不阻断 CI，避免每天红色麻木）；平台健康汇总（健康表顶部加 wy/kw/tx/mg 整体状态）；死源分级（🔴 紧急主路全挂 vs 🟡 次要备用源挂）；README 表格原因标注（403=被封/429=限流/ENOTFOUND=域名失效）；恢复标记（刚恢复的源加 🟡 已恢复观察中）；UA 轮换（3 个 UA 池随机）；超时/网络错误重试 1 次（减少抖动误判）；自动生成 README.md 音源可用性表格（每日巡检自动更新日期+状态） |
+| **v29.5** | 深度交叉点审计修复版：配置写模式返回 current 脱敏（和读模式一致）；配置热更新加 PARAM_LIMITS 上下限校验（14 个参数各有合理上下限）；修改熔断阈值后重置所有源 failureCount（避免"突然熔断"）；修改缓存 TTL 后清空 successCache（新 TTL 立即生效）；手动探测不存历史快照（避免污染趋势）；deadCount 加上 half-open 状态（半开试探中也算"可能还坏着"）；兜底平台选健康分最高的（按 avgScore 排序）；历史快照上限 20→60 条（≈10 小时趋势）；历史快照去掉 name/enabled 冗余字段；breakers → breakerMap 变量名拼写错误修复 |
 | **v29.4** | 健康趋势图版：新增 trend action（每次探测后存历史快照，保留最近20条）；App 健康面板加趋势图（绿/橙/红三色柱状图） |
 | **v29.3** | 配置热更新版：新增 config action（运行时读/改 USER_CONFIG 内存值，免重载音源）；App 健康面板加配置按钮（只读查看）
 | **v29.2** | 平台级降级状态版：快照加 `_platformSummary`（wy/kw/tx/mg/kg 五平台分组，判断启用子源全部失效→degraded）+ `_fallbackPlatform`（第一个健康平台名）；App 健康面板显示黄底⚠️提示条；运行时逻辑同 v28 |
