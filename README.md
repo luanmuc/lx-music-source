@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v29.4 健康趋势图版**（`lx-source.js` 内 `@version 29.4```） |
+| 当前版本 | **v29.5 深度审计修复版**（`lx-source.js` 内 `@version 29.5`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v29.4**（当前） | 健康趋势图版：新增 trend action（每次探测后存历史快照，保留最近20条）；App 健康面板加趋势图（绿/橙/红三色柱状图）
+| **v29.5**（当前） | 深度交叉点审计修复版：配置写模式返回 current 脱敏（和读模式一致）；配置热更新加 PARAM_LIMITS 上下限校验（14 个参数各有合理上下限）；修改熔断阈值后重置所有源 failureCount（避免"突然熔断"）；修改缓存 TTL 后清空 successCache（新 TTL 立即生效）；手动探测不存历史快照（避免污染趋势）；deadCount 加上 half-open 状态（半开试探中也算"可能还坏着"）；兜底平台选健康分最高的（按 avgScore 排序）；历史快照上限 20→60 条（≈10 小时趋势）；历史快照去掉 name/enabled 冗余字段；breakers → breakerMap 变量名拼写错误修复 |
+| **v29.4** | 健康趋势图版：新增 trend action（每次探测后存历史快照，保留最近20条）；App 健康面板加趋势图（绿/橙/红三色柱状图） |
 | **v29.3** | 配置热更新版：新增 config action（运行时读/改 USER_CONFIG 内存值，免重载音源）；App 健康面板加配置按钮（只读查看）
 | **v29.2** | 平台级降级状态版：快照加 `_platformSummary`（wy/kw/tx/mg/kg 五平台分组，判断启用子源全部失效→degraded）+ `_fallbackPlatform`（第一个健康平台名）；App 健康面板显示黄底⚠️提示条；运行时逻辑同 v28 |
 | **v28** | 自动健康日报版：新增 `scripts/health-daily.js`——读 probe-history 按端点聚合近 7 日成功率/均时/连续失败天数，连续 3 天全失败或真故障率 >50% 自动生成摘除建议，输出 Markdown 日报到 `docs/health-daily/`；运行时逻辑同 v27.4 |
