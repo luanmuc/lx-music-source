@@ -1,6 +1,6 @@
-# lx-music-source — 豆包定制[聚合音源]
+# backend-api — 豆包定制[聚合音源]
 
-> 与 [`luanmuc/lx-music-mobile`](https://github.com/luanmuc/lx-music-mobile)（落雪音乐定制版）配套的内置聚合音源仓库。
+> 与 [`luanmuc/mobile-app`](https://github.com/luanmuc/mobile-app)（落雪音乐定制版）配套的内置聚合音源仓库。
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置音源**，因此：
 > - 本仓库是唯一权威音源入口，改音源只改这里；
 > - 每次发布到 Release 页的版本 = 用户 App 实际内置的版本。
@@ -14,7 +14,7 @@
 | 当前版本 | **v29.6 巡检脚本优化版**（`lx-source.js` 内 `@version 29.6`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
-| 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
+| 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
 | 发布入口 | 本仓库 **Releases 页**：每次迭代出 tag + 附 `lx-source.js` 产物 |
 | 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
@@ -23,13 +23,13 @@
 > 面向其他洛雪音乐用户：设置 → 基本设置 → 自定义源 → 自定义源管理 → 在线导入。
 
 ```
-https://raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-source.js
+https://raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 ```
 
 加速链接（GitHub 受限时使用）：
 
 ```
-https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-source.js
+https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 ```
 
 ## 音源可用性（2026-11-04 核验）
@@ -110,7 +110,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 1. 每次迭代**必须**更新 `lx-source.js` 文件头 `@version` 与 `@description`（写明本轮变更与实测结论）；
 2. 发布前必须跑完 [DEV_GUIDE.md 测试清单](./docs/DEV_GUIDE.md#八测试清单发布前必做)；
-3. 需要 App 换新音源时，用 `workflow_dispatch` 触发 `lx-music-mobile` 的 release.yml 构建（push 空提交亦可）。
+3. 需要 App 换新音源时，用 `workflow_dispatch` 触发 `mobile-app` 的 release.yml 构建（push 空提交亦可）。
 
 ## 已知失效/关闭源（保留函数便于恢复）
 

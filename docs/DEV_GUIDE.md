@@ -1,13 +1,13 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/lx-music-source` · 基线文件：`lx-source.js`（当前 **v26.3 生态扫描制度化版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v26.3 生态扫描制度化版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
 
 ## 一、仓库定位与集成关系
 
-- **唯一权威音源**：App（`luanmuc/lx-music-mobile`）每次云编译（CI）时，用 GitHub Contents API 拉取本仓库根目录 `lx-source.js`，生成 App 内 `assets/builtin_source.js`（**App 仓库已不再内置音源副本**，该文件由每次构建自动创建；以本仓库为准）。
+- **唯一权威音源**：App（`luanmuc/mobile-app`）每次云编译（CI）时，用 GitHub Contents API 拉取本仓库根目录 `lx-source.js`，生成 App 内 `assets/builtin_source.js`（**App 仓库已不再内置音源副本**，该文件由每次构建自动创建；以本仓库为准）。
 - **发布节奏**：音源版本独立于 App 的 bN 构建号。音源发布 → （需要时）触发 App 构建 → App release。
 - **架构一句话**：一个遵循「洛雪自定义音源协议」（`on/request + musicUrl action + send inited`）的**多子源聚合器**，内置 5 平台 × 多子源 × 音质降级 × 健康自愈。
 - **生态背景（已实证）**：2023-10-18 因腾讯投诉，LX Music v2.6.0 移除所有内置自定义源，官方本体不再提供在线播放/下载（官方 FAQ）。**自定义源生态是用户可听歌的唯一路径**——本仓库的存在前提。
@@ -93,7 +93,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ## 四、子源实测状态总表（2026-10-15 实测基线 + 2026-10-27 生态交叉验证）
 
-> 交叉验证来源：`pdone/lx-music-source`（GitHub，★10,312）的 `.health-state.json`（GitHub Actions 每日探测，2026-10-27 抓取）。
+> 交叉验证来源：`pdone/backend-api`（GitHub，★10,312）的 `.health-state.json`（GitHub Actions 每日探测，2026-10-27 抓取）。
 > **口径注意**：pdone 探测来自 CI 服务器 IP，本仓库实测来自本机/沙箱 IP——**IP 维度不同**，出现分歧时不代表某一方错误，而是"上游对不同 IP 策略不同"（典型：溯音咪咕）。
 
 | 子源 | 平台 | 音质 | 本仓库实测 | pdone 交叉验证（对应域名） | 结论 |
@@ -135,9 +135,9 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
 
-> 依据：洛雪官方文档原文抓取（桌面版/移动版 custom-source 页）+ fork App 引擎源码（`luanmuc/lx-music-mobile` 的 `user-api-preload.js`，21.8KB）。
+> 依据：洛雪官方文档原文抓取（桌面版/移动版 custom-source 页）+ fork App 引擎源码（`luanmuc/mobile-app` 的 `user-api-preload.js`，21.8KB）。
 
-| 协议面 | 官方文档定义 | fork App（lx-music-mobile）实现 | 本仓库现状 | 结论 |
+| 协议面 | 官方文档定义 | fork App（mobile-app）实现 | 本仓库现状 | 结论 |
 |---|---|---|---|---|
 | 脚本头注释 | `@name/@description/@version/@author/@homepage`（name≤24 字，desc≤36） | 解析后注入 `currentScriptInfo` | ✅ 头部齐全，含 @contribution 实测注释 | 合规 |
 | `globalThis.lx.version` | API 版本号 | `'2.0.0'` | （脚本侧无需校验） | — |
@@ -232,7 +232,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ### v29 系列 — App 配合的音源能力（两仓库协同，按需推进，需 App 配合）
 
-> 背景：以下四项均需 fork App（`lx-music-mobile`）配合。音源侧先做数据/接口准备，App 侧随 bN 编译落地；统一收敛本系列避免版本号碎片化。**一次 bN 构建可同时带多项。**
+> 背景：以下四项均需 fork App（`mobile-app`）配合。音源侧先做数据/接口准备，App 侧随 bN 编译落地；统一收敛本系列避免版本号碎片化。**一次 bN 构建可同时带多项。**
 > 前提项（实证铁律）：带 ⚑ 的版本必须先做 L2 实测确认能力存在再开发。**设计口径**：v29.3 持久化归 App（存储+启动注入）、即时生效归音源（config action）；v29.4 历史序列由 App 侧跨会话缓存（音源内存重启清零）。
 
 | # | 任务 | 音源侧 | App 侧 | 前提实证 | 验收标准 |
@@ -334,7 +334,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 3. **提交**：`git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master`（**push 前先 pull --rebase**，防远端冲突；功能级改动走分支 + PR，见 AGENTS.md）；
 4. **发**：GitHub Releases 创建 `vX.Y`：标题 `聚合音源 vX.Y …`、正文 = 变更说明 + 实测结论、附件 = 当前 `lx-source.js`；
 5. **通知**（v12.3 起）：`updateAlert` 事件随版本发送，用户 App 内可见更新弹窗；
-6. **联动**（需要 App 内置新音源时）：触发 `lx-music-mobile` 的 release.yml（`workflow_dispatch` 或 push 空提交）；
+6. **联动**（需要 App 内置新音源时）：触发 `mobile-app` 的 release.yml（`workflow_dispatch` 或 push 空提交）；
 7. **留档**：`versions/` 目录归档带版本号副本，防误删回滚。
 8. **发布后监控**（v16.2 起）：Release 发布触发 CI 端点巡检（`release: published`），生成发布后基线健康表（含近 7 日成功率与「死源建议」清单）；发版后 3 天内关注健康表核心源（gdWy/xinghaiBackend/suyinKuwo/suyin163/wyOuter）成功率——若核心源连续失败（连续 ≥3 天）说明新版本引入回归，应回滚上一版并排查；死源建议清单是下一轮迭代「摘除/留档」的输入。
 

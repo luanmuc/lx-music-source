@@ -5,7 +5,7 @@
 
 ## 项目一句话
 
-洛雪音乐（`luanmuc/lx-music-mobile` 定制版）的内置聚合音源。根目录单文件 `lx-source.js` 是**唯一权威产物**，App 云编译时 CI 自动拉取它生成 `assets/builtin_source.js`（**App 仓库不内置音源副本**，每次构建由 CI 创建）。
+洛雪音乐（`luanmuc/mobile-app` 定制版）的内置聚合音源。根目录单文件 `lx-source.js` 是**唯一权威产物**，App 云编译时 CI 自动拉取它生成 `assets/builtin_source.js`（**App 仓库不内置音源副本**，每次构建由 CI 创建）。
 
 ## 目录结构
 
@@ -63,7 +63,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 
 ## 文档同步规范（强制，无需提醒）
 
-> 任何功能/修复/版本改动落地后，**必须主动同步更新本仓库全部相关文档**，不等用户提醒。与 App 仓库（lx-music-mobile AGENTS.md「文档同步规范」）同标准。
+> 任何功能/修复/版本改动落地后，**必须主动同步更新本仓库全部相关文档**，不等用户提醒。与 App 仓库（mobile-app AGENTS.md「文档同步规范」）同标准。
 
 ### 触发场景 → 必同步文档
 
@@ -154,5 +154,5 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 ## 参考实证（2026-10-27 调研）
 
 - 官方协议文档：https://lxmusic.toside.cn/desktop/custom-source 、/mobile/custom-source
-- 生态对照仓库：https://github.com/pdone/lx-music-source （★10k+，健康检查 CI + AGENTS.md 模板）
+- 生态对照仓库：https://github.com/pdone/backend-api （★10k+，健康检查 CI + AGENTS.md 模板）
 - 详细论证见 DEV_GUIDE.md「六、升级优化规划」前的实证小节。

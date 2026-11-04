@@ -32,7 +32,7 @@ const ENDPOINT_MAP = [
   ['https://music.163.com/api/song/detail', 'wyDetail (网易 detail)'],
   ['https://music.163.com/api/song/lyric', 'wyLyric (网易歌词)'],
   ['https://img2.kuwo.cn/', 'kwPic (酷我封面模板)'],
-  ['https://github.com/luanmuc/lx-music-source/releases', 'githubReleases (GitHub Release)'],
+  ['https://github.com/luanmuc/backend-api/releases', 'githubReleases (GitHub Release)'],
 ];
 
 function mapEndpointName(url) {
