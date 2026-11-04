@@ -36,6 +36,10 @@
 | A13 | 并发安全 | 多请求同时操作同一 sourceId Map 有无竞态；熔断状态切换原子性 | ✅ | JS 单线程同步操作；half-open 只放行一个试探请求；inflightCount finally 统一释放 |
 | A14 | 日志系统 | logDebug/logInfo/logWarn/logError 开关逻辑/输出去向/safeConsole 边界 | ✅ | safeConsole 三级兜底完善；LOG_DEBUG 可配置；LOG_ENABLED 已改可配置（__lxSourceConfig.logEnabled，缺省 true） |
 | A15 | URL 清洗与安全 | 返回 URL 是否清洗恶意参数/防注入/HTTPS 升级覆盖 | ✅ | validateUrl 格式校验 + upgradeToHttps 协议升级；无注入风险（播放器只发 HTTP 请求） |
+| A16 | 新增 action 完整性 | config/trend/toggle/probe 的 action 声明 + push 注册 + 读返回结构全链路 | ✅ | v29.2~v29.4 新增，已审：4 个 action 都有 handler，返回结构合理 |
+| A17 | 平台级降级聚合 | _platformSummary 五平台分组逻辑 + _fallbackPlatform 兜底选择正确性 | ✅ | v29.2 新增，已审：PLATFORM_GROUPS 五平台分组，deadCount 判断含 state==="open"（熔断），兜底选第一个健康平台 |
+| A18 | 配置热更新校验 | 读模式脱敏返回/写模式白名单/类型校验/范围校验/内存热更新 | ✅ | v29.3 新增，已审：读模式脱敏 3 个卡密字段，写模式白名单 14 参数 + typeof number + >0 校验 |
+| A19 | 健康趋势历史 | healthHistory 数组增长上限/保留策略/快照结构/趋势 action 返回 | ✅ | v29.4 新增，已审：数组最多 20 条，超出 shift 删除最早，不会无限增长 |
 
 ## B 组：脚本（4 个，549 行）
 
@@ -91,10 +95,10 @@
 
 ## 统计
 
-- 总维度数：32
-- ✅ 已审：20
+- 总维度数：36
+- ✅ 已审：24
 - ⚠️ 有问题：1
-- 📝 待审：11
+- 📝 待审：11（含 G2 Node 版本兼容）
 
 ## 版本迭代更新规则
 
