@@ -39,7 +39,7 @@ node test/lx-source-smoke-test.js
 # 生态扫描（v26.3 起：pdone 健康表交叉，产出新候选/失效清单）
 node scripts/ecosystem-scan.js
 
-# 提交 + 推送（push 前先 pull --rebase）
+# 提交 + 推送（push 前必须先 fetch 检查远端，见「协作规则」第 7 条）
 git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master
 ```
 
@@ -51,6 +51,12 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 4. **实测结论写进代码**：新增/改动子源后，在注释里留 `@contribution <日期> <账号>：<实测平台/音质/结果>`，禁止只写"应该能用"。
 5. **关闭的源不删代码**：只关开关 + README 标注原因（恢复成本最低）。
 6. **禁止**：未经验证把"猜测可用的接口"接入正式链；直接覆盖他人正在编辑的文档段落。
+7. **推送前强制检查远端（多账号防覆盖）**：本仓库由多个豆包账号共用同一令牌开发，额度有限时可能中断或只推送了一部分。**每次 `git push` 前必须先 `git fetch origin` 并对比 `origin/master` 与本地 HEAD**：
+   - 若远端领先（有其他账号的新提交），**必须先 `git pull --rebase origin master`**，以最新代码为基线；
+   - rebase 后重跑自检门（L0 语法 + L1 冒烟 + L2 self-check），确认自己与对方的改动都存活；
+   - 有冲突必须读对方实现再解决，**禁止整块覆盖**他人已实测的功能；冲突裁决优先级：协议合规 / 实证结论 > 个人偏好；
+   - 推送被拒绝（non-fast-forward）时，立即 rebase 再推，**禁止 force push（`-f`）**；
+   - 若其他账号已完成同一主题（如候选实证判否、版本号规划），直接复用其结论、合并到自己的文档行，不重复劳动。
 
 ### 单文件冲突裁决（`lx-source.js` 是唯一权威产物，天然高冲突区）
 
@@ -83,6 +89,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 ### 推送前必跑（文档一致性闸门）
 
 ```bash
+git fetch origin && git log HEAD..origin/master --oneline  # 检查远端是否有其他账号新提交，有则先 pull --rebase
 node --check lx-source.js       # L0 语法
 node test/lx-source-smoke-test.js  # L1 冒烟 32 组
 node scripts/self-check.js      # 发布自检：@version 与 @description/logInfo/README/ROADMAP 同步，任一失败阻断发布
