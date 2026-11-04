@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * lx-source.js 端点巡检（v16.0：多日成功率统计）
+ * lx-source.js 端点巡检（v4.0：多日成功率统计）
  * 用法：
  *   node scripts/probe.js              # 探测全部端点，输出 README 可用性表（健康表）
  *   node scripts/probe.js --json       # 输出机器可读 JSON（供 CI 写回/告警）
@@ -10,7 +10,7 @@
  *   - HTTP 2xx/3xx + 音频 content-type 或 Range 206 → 可用
  *   - 连续两次失败才判失效（CI 每日跑，单次探测失败仅记录）
  * 输出：README_HEALTH.md 覆盖写（含近7日成功率）/ 历史记录 docs/probe-history.jsonl 追加 / stdout JSON
- * v16.0：每次巡检结果追加到 docs/probe-history.jsonl，按 URL 聚合近 7 日成功率写入健康表
+ * v4.0：每次巡检结果追加到 docs/probe-history.jsonl，按 URL 聚合近 7 日成功率写入健康表
  */
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +21,7 @@ const SRC = path.join(__dirname, '..', 'lx-source.js');
 const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
 const HIST_DIR = path.join(__dirname, '..', 'docs');
 const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
-const HISTORY_DAYS = 7; // v16.0：近 7 日成功率窗口
+const HISTORY_DAYS = 7; // v4.0：近 7 日成功率窗口
 const CONCURRENCY = 5; // v29.6：并发池——同时最多 5 个请求，避免被风控封 IP
 const DEAD_STREAK_THRESHOLD = 3; // v16.1：连续失败天数阈值
 const UA_POOL = [ // v29.6：UA 池轮换，降低被风控概率
@@ -69,15 +69,15 @@ const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const quick = args.includes('--quick');
 
-// v16.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
-// v28.1：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
+// v4.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
+// v8.0：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
 const HISTORY_RETENTION_DAYS = 30;
 function appendHistory(results) {
   const date = new Date().toISOString().slice(0, 10);
   const lines = results.map(r => JSON.stringify({ date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason }));
   if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
   fs.appendFileSync(HIST_FILE, lines.join('\n') + '\n');
-  // v28.1：清理 30 天前的旧数据
+  // v8.0：清理 30 天前的旧数据
   const cutoff = new Date(Date.now() - HISTORY_RETENTION_DAYS * 864e5).toISOString().slice(0, 10);
   const allLines = fs.readFileSync(HIST_FILE, 'utf8').split('\n').filter(l => l.trim());
   const kept = [];
@@ -94,7 +94,7 @@ function appendHistory(results) {
   return date;
 }
 
-// v16.0：按 URL 聚合近 HISTORY_DAYS 日成功率（每天取最后一次结果）
+// v4.0：按 URL 聚合近 HISTORY_DAYS 日成功率（每天取最后一次结果）
 function aggregateHistory() {
   if (!fs.existsSync(HIST_FILE)) return {};
   const cutoffMs = Date.now() - HISTORY_DAYS * 864e5;
@@ -216,7 +216,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   }
 
   // 健康表写回 README_HEALTH.md（CI 每日刷新；v13.1 写回目标，README 引用它）
-  // v16.0：追加本次结果到历史 + 近7日成功率列
+  // v4.0：追加本次结果到历史 + 近7日成功率列
   const today = appendHistory(results);
   const hist = aggregateHistory();
   const dead = collectDeadSources(hist, results);
@@ -342,7 +342,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
 |---|---|---|---|
 ${tableRows}
 
-> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v28 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
+> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v8.0 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
   );
 
   if (updatedReadme !== readmeContent) {

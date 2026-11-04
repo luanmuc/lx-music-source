@@ -1,6 +1,6 @@
 # 音源仓库审计计划（活文档）
 
-> 基线版本：v28.1（commit d07f17b）
+> 基线版本：v8.0（commit d07f17b）
 > 最近更新：2026-11-04
 > 维护规则：每次版本迭代时同步更新维度状态；新增功能加新维度，修复问题关问题维度。
 
@@ -24,22 +24,22 @@
 | A1 | 语法/运行时正确性 | node --check + mock 宿主全路径加载 | ✅ | |
 | A2 | 错误处理完整性 | async 函数 try/catch 全覆盖，错误码结构化 | ✅ | 31 个 async 函数，内部辅助全有 try/catch |
 | A3 | 安全审计 | HTTP 明文/敏感信息硬编码/URL 注入 | ✅ | API 端点 http 正常（返回链有 upgradeToHttps） |
-| A4 | 沙箱兼容性 | VM 限制 API（setInterval/console/全局变量） | ✅ | v25.11 setInterval→setTimeout；safeConsole 宿主防御 |
+| A4 | 沙箱兼容性 | VM 限制 API（setInterval/console/全局变量） | ✅ | v6.0 setInterval→setTimeout；safeConsole 宿主防御 |
 | A5 | 性能与内存 | 全局 Map 边界/LRU 上限/reqTimestamps 窗口/inflightCount 清理 | ✅ | LRU 500+300 有界；全局 Map 按 sourceId key 固定 20 个 |
 | A6 | 架构一致性 | 模块职责边界/依赖方向/注册表模式 | ✅ | 调度→实现单向依赖；SOURCE_HANDLERS 注册表 |
 | A7 | 命名与注释质量 | 命名一致性/注释与实际开关/实测日期 | ✅ | 统一 xxxGetUrl；注释与开关状态一致 |
 | A8 | 代码重复 | HTTP/缓存/校验逻辑是否复用公共函数 | ✅ | 20 源零重复 fetch，全走公共封装 |
 | A9 | 20 个子源端到端 | 参数校验→缓存→请求→校验→Range→缓存→返回 | ✅ | 抽查 gdWy/helloworldKw/juhe 三个典型源 |
-| A10 | 健康系统 | 探测/熔断/自愈/摘死/复活全链路 | ✅ | 11 个核心函数职责明确，v25.x 多轮审计修复 |
+| A10 | 健康系统 | 探测/熔断/自愈/摘死/复活全链路 | ✅ | 11 个核心函数职责明确，v6.0 多轮审计修复 |
 | A11 | 缓存系统 | TTL/键策略/失败缓存差异化/过期兜底 | ✅ | 成功 6h + 失败按错误码差异化 TTL |
 | A12 | 降级链与竞速回退 | raceFirst/fallbackRace/6s超时/音质优先 | ✅ | 前三源竞速 + 剩余串行 + 过期兜底 |
 | A13 | 并发安全 | 多请求同时操作同一 sourceId Map 有无竞态；熔断状态切换原子性 | ✅ | JS 单线程同步操作；half-open 只放行一个试探请求；inflightCount finally 统一释放 |
 | A14 | 日志系统 | logDebug/logInfo/logWarn/logError 开关逻辑/输出去向/safeConsole 边界 | ✅ | safeConsole 三级兜底完善；LOG_DEBUG 可配置；LOG_ENABLED 已改可配置（__lxSourceConfig.logEnabled，缺省 true） |
 | A15 | URL 清洗与安全 | 返回 URL 是否清洗恶意参数/防注入/HTTPS 升级覆盖 | ✅ | validateUrl 格式校验 + upgradeToHttps 协议升级；无注入风险（播放器只发 HTTP 请求） |
-| A16 | 新增 action 完整性 | config/trend/toggle/probe 的 action 声明 + push 注册 + 读返回结构全链路 | ✅ | v29.2~v29.4 新增，已审：4 个 action 都有 handler，返回结构合理 |
-| A17 | 平台级降级聚合 | _platformSummary 五平台分组逻辑 + _fallbackPlatform 兜底选择正确性 | ✅ | v29.2 新增，已审：PLATFORM_GROUPS 五平台分组，deadCount 判断含 state==="open"（熔断），兜底选第一个健康平台 |
-| A18 | 配置热更新校验 | 读模式脱敏返回/写模式白名单/类型校验/范围校验/内存热更新 | ✅ | v29.3 新增，已审：读模式脱敏 3 个卡密字段，写模式白名单 14 参数 + typeof number + >0 校验 |
-| A19 | 健康趋势历史 | healthHistory 数组增长上限/保留策略/快照结构/趋势 action 返回 | ✅ | v29.4 新增，已审：数组最多 20 条，超出 shift 删除最早，不会无限增长 |
+| A16 | 新增 action 完整性 | config/trend/toggle/probe 的 action 声明 + push 注册 + 读返回结构全链路 | ✅ | v8.0 新增，已审：4 个 action 都有 handler，返回结构合理 |
+| A17 | 平台级降级聚合 | _platformSummary 五平台分组逻辑 + _fallbackPlatform 兜底选择正确性 | ✅ | v8.0 新增，已审：PLATFORM_GROUPS 五平台分组，deadCount 判断含 state==="open"（熔断），兜底选第一个健康平台 |
+| A18 | 配置热更新校验 | 读模式脱敏返回/写模式白名单/类型校验/范围校验/内存热更新 | ✅ | v8.0 新增，已审：读模式脱敏 3 个卡密字段，写模式白名单 14 参数 + typeof number + >0 校验 |
+| A19 | 健康趋势历史 | healthHistory 数组增长上限/保留策略/快照结构/趋势 action 返回 | ✅ | v8.0 新增，已审：数组最多 20 条，超出 shift 删除最早，不会无限增长 |
 
 ## B 组：脚本（4 个，549 行）
 
@@ -60,7 +60,7 @@
 
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
-| D1 | DEV_GUIDE 模块地图 | 行段/子源数/职责描述 vs 实际代码 | ✅ | v28 已校准（8 大部分行段 + 子源数 20） |
+| D1 | DEV_GUIDE 模块地图 | 行段/子源数/职责描述 vs 实际代码 | ✅ | v8.0 已校准（8 大部分行段 + 子源数 20） |
 | D2 | README 版本历史 | 版本号/可用性表/下载链接 | ✅ | |
 | D3 | ROADMAP 状态 | 待开发/已交付标记准确性 | ✅ | |
 | D4 | AGENTS.md 协作规范 | 与实际流程一致 | ✅ | |
@@ -72,15 +72,15 @@
 
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
-| E1 | ci.yml 流程 | 触发条件/job 依赖/写回逻辑 | ✅ | v28 已接入 health-daily + ecosystem job |
+| E1 | ci.yml 流程 | 触发条件/job 依赖/写回逻辑 | ✅ | v8.0 已接入 health-daily + ecosystem job |
 | E2 | 多账号防覆盖 | fetch/rebase/禁止 force push | ✅ | AGENTS.md 已明确 |
 
 ## F 组：数据与资产
 
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
-| F1 | probe-history.jsonl 增长 | 历史文件会不会无限增长？清理策略？ | ✅ | v28.1 已加 30 天滚动清理（appendHistory 后过滤旧行重写文件） |
-| F2 | health-daily 输出目录 | 日报文件会不会无限堆积？保留策略？ | ✅ | v28.1 已加 90 天保留清理（生成日报后删除旧文件） |
+| F1 | probe-history.jsonl 增长 | 历史文件会不会无限增长？清理策略？ | ✅ | v8.0 已加 30 天滚动清理（appendHistory 后过滤旧行重写文件） |
+| F2 | health-daily 输出目录 | 日报文件会不会无限堆积？保留策略？ | ✅ | v8.0 已加 90 天保留清理（生成日报后删除旧文件） |
 | F3 | README_HEALTH.md 格式 | 表格格式/列宽/特殊字符转义 | ✅ | 6列一致，长URL截断，emoji/反引号正常显示 |
 | F4 | license/版权合规 | 20 个子源 API 是否有版权风险 | ✅ | 非官方项目无LICENSE（合理）；只是API工具不存储音乐，版权风险低 |
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * scripts/ecosystem-scan.js —— v26.3 生态扫描脚本化
+ * scripts/ecosystem-scan.js —— v7.0 生态扫描脚本化
  *
  * 例行生态扫描（原手动）：抓取 pdone/backend-api 每日 CI 健康表（health-status 分支 health-state.json），
  * 与本仓库 SOURCE_HANDLERS 交叉对比，自动产出：
@@ -34,7 +34,7 @@ const PDONE_TO_LOCAL = {
   // fish/flower/grass/helloworld/huanyin/hyw/jiexiang/lx/qdy → 本仓库无对应
 };
 
-// v26.4 (S5)：本仓库源列表改为从 lx-source.js SOURCE_HANDLERS 动态提取——旧实现手工维护此表
+// v7.0 (S5)：本仓库源列表改为从 lx-source.js SOURCE_HANDLERS 动态提取——旧实现手工维护此表
 // 且 self-check 不校验，源增删会漂移导致报告交叉项失真。动态提取后增删源自动同步、永不漂移；
 // 若 lx-source.js 结构变更导致提取失败，明确报错退出（不静默产出错误报告）。
 const SRC_PATH = path.join(__dirname, '..', 'lx-source.js');

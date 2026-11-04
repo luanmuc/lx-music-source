@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v28 自动健康日报：读取 probe-history.jsonl，按端点聚合近 7 日成功率/均时，
+ * v8.0 自动健康日报：读取 probe-history.jsonl，按端点聚合近 7 日成功率/均时，
  * 连续 3 天真故障率超阈值的源生成"摘除建议"，输出 Markdown 日报到 docs/health-daily/。
  *
  * 用法：node scripts/health-daily.js [--date YYYY-MM-DD] [--out docs/health-daily/YYYY-MM-DD.md]
@@ -113,7 +113,7 @@ function renderReport({ results, recentDates }, targetDate) {
   lines.push(`# 健康日报 ${targetDate}`);
   lines.push('');
   lines.push(`> 统计窗口：近 ${recentDates.length} 天（${recentDates[0]} ~ ${recentDates[recentDates.length - 1]}）`);
-  lines.push(`> 生成脚本：\`scripts/health-daily.js\`（v28）`);
+  lines.push(`> 生成脚本：\`scripts/health-daily.js\`（v8.0）`);
   lines.push(`> 数据口径：probe-history.jsonl 记录的是端点 GET 探测结果，**不等于实际取链行为**（部分源取链为 POST 带参数）；摘除建议为参考，最终以 L2 实测为准。`);
   lines.push('');
   lines.push('## 端点状态总览');
@@ -170,7 +170,7 @@ function main() {
   console.log(`✅ 日报已生成: ${outPath}`);
   console.log(`   ${results.length} 个端点，${results.filter(r => r.shouldFlag).length} 个建议摘除`);
 
-  // v28.1：90 天滚动清理——只保留近 90 天日报，防止文件无限堆积
+  // v8.0：90 天滚动清理——只保留近 90 天日报，防止文件无限堆积
   const RETENTION_DAYS = 90;
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 864e5);
   const oldFiles = fs.readdirSync(OUT_DIR)

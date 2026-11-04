@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * lx-source.js 冒烟测试（v13.0 固化，替代 /tmp 原型）
+ * lx-source.js 冒烟测试（v2.0 固化，替代 /tmp 原型）
  * 用途：mock 洛雪移动端宿主（globalThis.lx），验证加载即用 + 上报结构 + 请求链路 + 失败缓存差异化 + 熔断分类
  * 运行：node test/lx-source-smoke-test.js （CI 自动执行）
  * 设计说明：lx-source.js 是 side-effect 加载（无导出），测试通过捕获 on/send 事件与 mock request 计数断言。
@@ -75,8 +75,8 @@ function buildRoutes(mode) {
       'oiapi.net/api/Kuwo': json({ data: { url: 'https://example.com/kw.flac' } }),        // 溯音酷我
       'search.kuwo.cn': { statusCode: 200, headers: {}, body: "{'MP3RID':'MP3_123','NAME':'晴天','ARTIST':'周杰伦','DURATION':271}" }, // 酷我搜索
       'antiserver.kuwo.cn': { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'https://example.com/kuwo.mp3' },   // 酷我转换
-      'nmobi.kuwo.cn': json({ code: 200, data: { url: 'https://example.com/hw.flac', format: 'flac', bitrate: 2000 } }),              // v27.2 helloworld convert_url_with_sign
-      'musicserver.haitangw.cc': json({ code: 0, url: 'https://example.com/hw2.flac' }),                                              // v27.2 helloworld htw v1 备用
+      'nmobi.kuwo.cn': json({ code: 200, data: { url: 'https://example.com/hw.flac', format: 'flac', bitrate: 2000 } }),              // v7.0 helloworld convert_url_with_sign
+      'musicserver.haitangw.cc': json({ code: 0, url: 'https://example.com/hw2.flac' }),                                              // v7.0 helloworld htw v1 备用
       'music.163.com/song/media/outer': { statusCode: 200, headers: { 'content-type': 'audio/mpeg' }, body: '' },                   // 网易 outer
       'oiapi.net/api/Music_163': json({ code: 0, data: [{ url: 'https://example.com/163.mp3' }] }),                                  // 溯音163
     },
@@ -115,7 +115,7 @@ async function test(name, fn) {
 (async () => {
   console.log('[T1] 加载防御');
   setMockLx(); mockRoute = buildRoutes('success');
-  // v25.1：测试豁免生产限速（3s窗口5次/源）——测试密集请求非真实用户节奏；
+  // v6.0：测试豁免生产限速（3s窗口5次/源）——测试密集请求非真实用户节奏；
   // T8 起用多首歌验证熔断会密集触网，放宽窗口上限模拟真实节奏（限速在真实 App 生效）
   globalThis.__lxSourceConfig = { rateWindowMax: 100000, maxConcurrency: 100000, rateWindowMs: 3600000 };
   const loadErr = loadSource(true); // 无 console 加载
@@ -128,9 +128,9 @@ async function test(name, fn) {
   assert.deepStrictEqual(inited.payload.sources.wy.qualitys, ['128k', '320k', 'flac'], 'wy 上报音质应裁剪为真实能力');
   assert.ok(inited.payload.status === true, 'inited status 应为 true');
 
-  console.log('[T3] v16.5.1 updateAlert 已停用：不再发送发版通知（用户关闭弹窗）');
+  console.log('[T3] v4.0 updateAlert 已停用：不再发送发版通知（用户关闭弹窗）');
   const alert = sentEvents.find(e => e.name === 'updateAlert');
-  assert.ok(!alert, 'v16.5.1 不应再发送 updateAlert');
+  assert.ok(!alert, 'v4.0 不应再发送 updateAlert');
 
   console.log('[T4] musicUrl 请求链路（kw flac → 星海/溯音酷我竞速）');
   const song = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908' };
@@ -165,7 +165,7 @@ async function test(name, fn) {
   const after = Object.values(counts).reduce((s, v) => s + v, 0);
   assert.strictEqual(after, before, `404失败缓存(1h)后不应重试，实际+${after - before}`);
 
-  console.log('[T7] 失败缓存差异化（v25.1）：网络错误全链失败 → 30s 短缓存（短时间不重试）');
+  console.log('[T7] 失败缓存差异化（v6.0）：网络错误全链失败 → 30s 短缓存（短时间不重试）');
   resetMock();
   mockRoute = buildRoutes('netfail');
   const netFailSong = { name: '网络错误测试歌', singer: '未知', duration: 180000, songmid: 'netfail-song-1' };
@@ -553,7 +553,7 @@ async function test(name, fn) {
 
   console.log('[T26] v18.1 Juhe源族扩充：tx 303→vkeys→直链全链路，wy/kg/mg 四源注册');
   resetMock();
-  // v25.1(A1)：Juhe 默认关闭（上游实测不可用）——本用例手动开启 juheTx 验证协议链路
+  // v6.0(A1)：Juhe 默认关闭（上游实测不可用）——本用例手动开启 juheTx 验证协议链路
   await requestHandler({ action: 'toggle', source: 'tx', info: { id: 'juheTx', enabled: true } });
   const juheRoute26 = (u) => {
     if (u.includes('api.music.lerd.dpdns.org/tx')) {
@@ -728,7 +728,7 @@ async function test(name, fn) {
   assert.ok(snap31.kuwoOfficial.playDead === true, '非探测源应保持摘除(半开试探复活)');
   delete globalThis.__lxSourceConfig;
 
-  console.log('[T32] v27.2 helloworld 实证接入：kw 链注册 + convert_url 主通道端到端 + htw v1 备用通道');
+  console.log('[T32] v7.0 helloworld 实证接入：kw 链注册 + convert_url 主通道端到端 + htw v1 备用通道');
   // 独立实例：仅 helloworld 路由可达，其他源全网络错误 → 验证 helloworldKw 独立可交付
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;

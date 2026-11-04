@@ -23,8 +23,8 @@ AGENTS.md           # 本文件：协作规范
 3. 通过后：改 `lx-source.js` 头部 `@version`/`@description`、README 版本历史、并把该版本 `[ ]` → `[x]`；
 4. 走 DEV_GUIDE 发布 SOP 出 tag + Release（附 `lx-source.js` 产物）；
 5. 一次迭代 = 一个版本 = 一个提交；用户说"迭代到 X"则连续执行，每版单独提交；
-6. 标注「外部依赖」的版本（v14+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现；
-7. **例行生态扫描**（v26.3 起脚本化）：`node scripts/ecosystem-scan.js` 抓取 pdone 每日健康表交叉对比，自动产出新候选（可用未接入）/失效清单；新候选（v27 系列）按实证规则逐个取链+Range 实测后才接入，不凭状态直接接入。
+6. 标注「外部依赖」的版本（v3.0+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现；
+7. **例行生态扫描**（v7.0 起脚本化）：`node scripts/ecosystem-scan.js` 抓取 pdone 每日健康表交叉对比，自动产出新候选（可用未接入）/失效清单；新候选（v7.0 系列）按实证规则逐个取链+Range 实测后才接入，不凭状态直接接入。
 
 ## 命令
 
@@ -38,7 +38,7 @@ node test/lx-source-smoke-test.js
 # 发布自检（版本/actions/README/ROADMAP 三向同步，推送前必跑）
 node scripts/self-check.js
 
-# 生态扫描（v26.3 起：pdone 健康表交叉，产出新候选/失效清单）
+# 生态扫描（v7.0 起：pdone 健康表交叉，产出新候选/失效清单）
 node scripts/ecosystem-scan.js
 
 # 提交 + 推送（push 前必须先 fetch 检查远端，见「协作规则」第 7 条）
