@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v29.2 平台级降级状态版**（`lx-source.js` 内 `@version 29.2`） |
+| 当前版本 | **v29.3 配置热更新版**（`lx-source.js` 内 `@version 29.3``） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/lx-music-source/contents/lx-source.js` |
@@ -51,7 +51,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/lx-music-source/master/lx-
 
 | 版本 | 说明 |
 |---|---|
-| **v29.2**（当前） | 平台级降级状态版：快照加 `_platformSummary`（wy/kw/tx/mg/kg 五平台分组，判断启用子源全部失效→degraded）+ `_fallbackPlatform`（第一个健康平台名）；App 健康面板显示黄底⚠️提示条；运行时逻辑同 v28 |
+| **v29.3**（当前） | 配置热更新版：新增 config action（运行时读/改 USER_CONFIG 内存值，免重载音源）；App 健康面板加配置按钮（只读查看）
+| **v29.2** | 平台级降级状态版：快照加 `_platformSummary`（wy/kw/tx/mg/kg 五平台分组，判断启用子源全部失效→degraded）+ `_fallbackPlatform`（第一个健康平台名）；App 健康面板显示黄底⚠️提示条；运行时逻辑同 v28 |
 | **v28** | 自动健康日报版：新增 `scripts/health-daily.js`——读 probe-history 按端点聚合近 7 日成功率/均时/连续失败天数，连续 3 天全失败或真故障率 >50% 自动生成摘除建议，输出 Markdown 日报到 `docs/health-daily/`；运行时逻辑同 v27.4 |
 | **v27.4** | 健康分 10 分制版：快照 `healthScore` 由 0~1 改 0~10（一位小数，如 8.5）——内部评分/排序/熔断逻辑不变，仅输出 ×10 换算，配合 App 健康面板直观显示；负分保留（异常源 App 标红） |
 | **v27.3** | 全面审计修复版：四源（溯音酷我/酷我官方/溯音咪咕/helloworldKw——含 v27.2 新源同源缺陷）内部缓存命中返回类型统一为裸 URL（旧返回包装对象被 validateUrl 拦截，实测缓存后跨平台取链 0ms 秒失败）；wy 封面取 `songs[0].album.picUrl/blurPicUrl` 回退 + 补移动 UA（网易 detail 实测带 ids 参数顶层 picUrl 恒 null、封面在 album 字段）；probe.js 端点过滤正则悬空 `|` 恒真修复（补 kuwo 关键词保 helloworldKw 主通道纳入巡检）；ecosystem-scan.js 源表改为从 SOURCE_HANDLERS 动态提取防漂移 |
