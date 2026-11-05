@@ -316,7 +316,12 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((e) => {
-  process.stderr.write(`候选实证失败: ${e && e.message ? e.message : String(e)}\n`);
-  process.exit(1);
-});
+// 直接运行时执行 main()；被 require 时导出函数供测试调用
+if (require.main === module) {
+  main().catch((e) => {
+    process.stderr.write(`候选实证失败: ${e && e.message ? e.message : String(e)}\n`);
+    process.exit(1);
+  });
+} else {
+  module.exports = { fetchUrl, mockLoadScript, staticExtract, generateReport };
+}
