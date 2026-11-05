@@ -1,0 +1,34 @@
+name: L4 docs-audit
+
+on:
+  schedule:
+    # 每日文档一致性巡检：UTC 06:15（北京时间 14:15，错开 probe 的 UTC 06:00）
+    - cron: '15 6 * * *'
+  workflow_dispatch: {}   # 手动触发
+
+jobs:
+  docs-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: L4 文档一致性巡检（低风险自动修复）
+        # 规则见 scripts/docs-audit.js：冒烟用例数 ↔ AGENTS / @version 子串 ↔ README / pdone URL 防回退
+        # 报告项（不修改）：README_HEALTH 与 candidate-status 新鲜度（>28h 告警）
+        run: node scripts/docs-audit.js
+      - name: 修复写回（自动提交，无变化跳过）
+        run: |
+          git config user.name 'luanmuc[bot]'
+          git config user.email 'luanmuc@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::无文档修复，跳过提交"
+          else
+            git commit -m "chore(docs): L4 文档巡检自动修复（docs-audit） [自动]"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
