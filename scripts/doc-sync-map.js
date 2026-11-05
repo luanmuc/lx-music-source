@@ -47,7 +47,7 @@ const HARD_TRIGGER = [
   'test/',               // 测试
   'scripts/',            // 工程脚本（排除本脚本自身所在 hooks 安装提交，见下）
 ];
-const HARD_TRIGGER_EXCLUDE = ['scripts/hooks/', 'scripts/doc-sync-map.js', 'scripts/install-hooks.sh'];
+const HARD_TRIGGER_EXCLUDE = ['scripts/hooks/', 'scripts/doc-sync-map.js', 'scripts/install-hooks.sh', 'scripts/docs-audit.js'];
 
 // ── 实现 ────────────────────────────────────────────────────────────────
 function getStagedFiles() {

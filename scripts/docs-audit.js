@@ -115,4 +115,4 @@ ruleCandidateFresh();
 console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
 for (const r of report) console.log(r);
 console.log(`\n汇总：${DRY ? '待处理' : '已修复'} ${fixed} 项 · 报告 ${report.length - fixed} 项\n`);
-process.exit(fixed > 0 || report.length > 0 ? (DRY ? 0 : (report.length - fixed > 0 ? 2 : 0)) : 0);
+process.exit(0);  // 恒成功：修复/报告已落盘，workflow 以 git diff 判断是否有提交
