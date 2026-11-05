@@ -90,16 +90,16 @@
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
 | G1 | 洛雪版本兼容 | 不同洛雪 App 版本的 fork API/action 声明兼容 | ✅ | 基础协议全版本稳定；高级action(health/toggle/probe)是fork扩展，官方版不调用不报错 |
-| G2 | Node 版本兼容 | 脚本在 Node 18/20/22 下是否都能跑 | 📝 | |
+| G2 | Node 版本兼容 | 脚本在 Node 18/20/22 下是否都能跑 | ✅ | 2026-11-05 审计：5 脚本+测试零 Node 18+/20+ 专属 API（无全局 fetch/structuredClone/Object.hasOwn/findLast/toSorted），依赖面仅 fs/http/https/path+new Function（Node12+ 通用）；Node 20 CI 实测 + Node 22 本机实测全绿；Node 18 静态论证兼容 |
 
 ---
 
 ## 统计
 
-- 总维度数：37
-- ✅ 已审：25
-- ⚠️ 有问题：1
-- 📝 待审：11（含 G2 Node 版本兼容）
+- 总维度数：40
+- ✅ 已审：39
+- ⚠️ 有问题：1（C1 smoke 缺口，已大部分覆盖低风险无排期）
+- 📝 待审：0
 
 ## 版本迭代更新规则
 
