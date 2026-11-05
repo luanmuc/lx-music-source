@@ -2,7 +2,7 @@
 /**
  * scripts/ecosystem-scan.js —— v7.0 生态扫描脚本化
  *
- * 例行生态扫描（原手动）：抓取 pdone/backend-api 每日 CI 健康表（health-status 分支 health-state.json），
+ * 例行生态扫描（原手动）：抓取 pdone/lx-music-source 每日 CI 健康表（health-status 分支 health-state.json），
  * 与本仓库 SOURCE_HANDLERS 交叉对比，自动产出：
  *   1) 共有源状态交叉（pdone 探测 vs 本仓库实测——IP 维度不同，分歧仅作参考）
  *   2) 新候选（pdone 可用、本仓库未接入 → 待逐个真实取链/Range 实测，按用户规则"可用才接入"）
@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PDONE_HEALTH_URL =
-  'https://raw.githubusercontent.com/pdone/backend-api/health-status/health-state.json';
+  'https://raw.githubusercontent.com/pdone/lx-music-source/health-status/health-state.json';
 
 // pdone 源名 → 本仓库 SOURCE_HANDLERS id 映射（按源族对应；无映射 = 本仓库未接入）
 const PDONE_TO_LOCAL = {

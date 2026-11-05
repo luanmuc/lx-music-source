@@ -46,7 +46,7 @@
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
 | B1 | self-check.js（74行） | 4 项检查覆盖度/CI L2 阻断 | ✅ | 版本串/actions声明/README/ROADMAP |
-| B2 | ecosystem-scan.js（129行） | 动态提取源列表/超时/错误处理 | ✅ | 从 SOURCE_HANDLERS 动态提取防漂移 |
+| B2 | ecosystem-scan.js（131行） | 动态提取源列表/超时/错误处理 | ✅ | 从 SOURCE_HANDLERS 动态提取防漂移；2026-11-05 审计发现 pdone 仓库改名 backend-api→lx-music-source，健康表 URL 已同步修复，复跑验证通过 |
 | B3 | probe.js（167行） | 端点提取/历史聚合/死源建议 | ✅ | 7 日成功率聚合 + 3 天死源阈值 |
 | B4 | health-daily.js（174行） | 聚合逻辑/日报格式/摘除建议阈值 | ✅ | 已修 3 bug（前缀匹配/排序/空函数） |
 | B5 | candidate-audit.js（292行，v8.1 新增） | mock 宿主加载/静态提取/混淆标注/报告生成；B1~B6 修复回归 | ✅ | 2026-11-05 审计修复完成（B1 鉴权误报/B2 payload.sources/B3 switch-case/B4 http 支持/B5 提取写法/B6 示例），6 用例专项测试全绿，端到端实测 5 平台 8 actions 正确 |
