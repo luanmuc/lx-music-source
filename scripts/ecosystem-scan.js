@@ -31,7 +31,8 @@ const PDONE_TO_LOCAL = {
   juhe: 'juheKw',
   xinghai: 'xinghaiBackend',
   yuningxi: 'nianxinVip',
-  // fish/flower/grass/helloworld/huanyin/hyw/jiexiang/lx/qdy → 本仓库无对应
+  helloworld: 'helloworldKw', // 2026-11-05 审计修复：已接入源误报为候选（映射缺失）
+  // fish/flower/grass/huanyin/hyw/jiexiang/lx/qdy → 无对应（见 DECIDED_NEW 判否名单）
 };
 
 // v7.0 (S5)：本仓库源列表改为从 lx-source.js SOURCE_HANDLERS 动态提取——旧实现手工维护此表
@@ -73,13 +74,26 @@ async function main() {
   const pdoneSources = health.sources;
 
   const cross = [];      // 共有源交叉
-  const newCandidates = []; // pdone 可用、本仓库未接入
+  const newCandidates = []; // pdone 可用、本仓库未接入（且未判否）
+  const decided = [];       // 已判否/留档候选（不再当新候选提示接入）
   const deadUpstream = [];  // pdone 失效/异常
+
+  // 2026-11-05 审计修复：ecosystem-scan 不知道本仓库判否历史，把已判否源反复当新候选提示接入。
+  // 判否结论来自 DEV_GUIDE「已判否的候选」（2026-10-29~30 三层实证），此处固化防误报。
+  const DECIDED_CANDIDATES = {
+    fish: '❌ 判否（2026-10-29：协议脱节/-462风控/音质校验失败）',
+    hyw: '❌ 判否（2026-10-30：后端 502，触发式待办——后端恢复可重评）',
+    jiexiang: '⚠️ 零增量留档（2026-10-30：成功通道走星海已接入，无新增量）',
+    lx: '❌ 判否（2026-10-30：防搬运 403 不可复用）',
+    qdy: '❌ 判否（2026-10-30：410 死链）',
+  };
 
   for (const [pdoneName, status] of Object.entries(pdoneSources)) {
     const localId = PDONE_TO_LOCAL[pdoneName];
     if (localId) {
       cross.push({ pdoneName, localId, pdoneStatus: status, localHas: LOCAL_SOURCES.includes(localId) });
+    } else if (DECIDED_CANDIDATES[pdoneName]) {
+      decided.push({ pdoneName, status, verdict: DECIDED_CANDIDATES[pdoneName] });
     } else if (status === '可用') {
       newCandidates.push({ pdoneName, status, note: 'pdone 每日 CI 可用，本仓库未接入 → 先用 candidate-audit.js 生成实证草案，再真实取链/Range 实测' });
     } else {
@@ -92,6 +106,7 @@ async function main() {
     pdoneUpdatedAt: health.updated_at || null,
     cross,
     newCandidates,
+    decided,
     deadUpstream,
   };
 
