@@ -86,6 +86,7 @@ async function main() {
     jiexiang: '⚠️ 零增量留档（2026-10-30：成功通道走星海已接入，无新增量）',
     lx: '❌ 判否（2026-10-30：防搬运 403 不可复用）',
     qdy: '❌ 判否（2026-10-30：410 死链）',
+    huanyin: '❌ 判否（2026-11-05：music-dl.sayqz.com DNS 已失效 + 咪咕接口 502 被限，端到端不可用；上游恢复可重评——触发式待办）',
   };
 
   for (const [pdoneName, status] of Object.entries(pdoneSources)) {
