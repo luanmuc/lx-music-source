@@ -41,6 +41,9 @@ node scripts/self-check.js
 # 生态扫描（v7.0 起：pdone 健康表交叉，产出新候选/失效清单）
 node scripts/ecosystem-scan.js
 
+# 判否候选恢复探测（hyw/huanyin 触发式待办监控；CI 每日自动跑，恢复即提示重评）
+node scripts/recheck-candidates.js
+
 # 提交 + 推送（push 前必须先 fetch 检查远端，见「协作规则」第 7 条）
 git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master
 ```
