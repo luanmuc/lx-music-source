@@ -2,8 +2,8 @@ name: L4 docs-audit
 
 on:
   schedule:
-    # 每日文档一致性巡检：UTC 06:15（北京时间 14:15，错开 probe 的 UTC 06:00）
-    - cron: '15 6 * * *'
+    # 每周一凌晨巡检：UTC 周日 18:15 = 北京时间周一 02:15（错开 probe 的 UTC 06:00）
+    - cron: '15 18 * * 0'
   workflow_dispatch: {}   # 手动触发
 
 jobs:
