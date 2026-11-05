@@ -45,7 +45,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ❌ 超时不稳定 |
 
-> 详细对照表、缺陷与**后续规划（v7.0 系列新候选实证接入 / v8.0 健康日报 / v8.0 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
+> 详细对照表、缺陷与**当前状态（v7.0/v8.0/v8.1 均已交付，无规划中的主线迭代项；候选接入为触发式待办）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
 ## 版本历史
 
 > 2026-11-05 版本重新整理：将原 53 个小版本（v11.11 ~ v29.9）按功能模块合并为 8 个大版本。
