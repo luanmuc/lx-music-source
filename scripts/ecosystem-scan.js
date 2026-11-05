@@ -81,7 +81,7 @@ async function main() {
     if (localId) {
       cross.push({ pdoneName, localId, pdoneStatus: status, localHas: LOCAL_SOURCES.includes(localId) });
     } else if (status === '可用') {
-      newCandidates.push({ pdoneName, status, note: 'pdone 每日 CI 可用，本仓库未接入 → 待真实取链/Range 实测' });
+      newCandidates.push({ pdoneName, status, note: 'pdone 每日 CI 可用，本仓库未接入 → 先用 candidate-audit.js 生成实证草案，再真实取链/Range 实测' });
     } else {
       deadUpstream.push({ pdoneName, status });
     }
@@ -121,6 +121,8 @@ async function main() {
   }
   console.log('');
   console.log(`候选接入下一步：对 ② 中每个候选抓取 latest.js 分析上游 → 真实取链 → CDN Range 206 + 魔数/码率校验 → 通过才接入 kw 链。`);
+  console.log('');
+  console.log(`💡 v8.1 已支持自动生成实证草案：node scripts/candidate-audit.js <脚本URL>`);
 }
 
 main().catch((e) => {
