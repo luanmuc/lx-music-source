@@ -137,9 +137,9 @@ async function test(name, fn) {
   const res = await requestUrl('kw', 'flac', song);
   assert.ok(res && res.url && res.url.startsWith('https://example.com/'), `返回URL异常: ${res && res.url}`);
   assert.ok(res.type, `应返回实际交付音质 type: ${JSON.stringify(res)}`);
-  // v25.8：实际子源透出——成功路径必须带 subSource（本 mock 竞速首个成功为 suyinKuwo/kuwoOfficial 之一）
+  // v6.0：实际子源透出——成功路径必须带 subSource（本 mock 竞速首个成功为 suyinKuwo/kuwoOfficial 之一）
   assert.ok(typeof res.subSource === 'string' && res.subSource, `应透出实际子源 subSource: ${JSON.stringify(res)}`);
-  // v25.9：子源中文名透出
+  // v6.0：子源中文名透出
   assert.ok(typeof res.subSourceName === 'string' && res.subSourceName, `应透出子源中文名 subSourceName: ${JSON.stringify(res)}`);
 
   console.log('[T5] 成功缓存：重复请求不重复外呼');
@@ -175,8 +175,8 @@ async function test(name, fn) {
   const after2 = Object.values(counts).reduce((s, v) => s + v, 0);
   assert.strictEqual(after2, before2, `网络错误全链失败应命中30s短缓存不重试（${before2}→${after2}）；30s后自动过期恢复重试`);
 
-  console.log('[T8] 熔断分类：业务失败(NOT_FOUND)不熔断、网络错误触发熔断（v26.1 摘除优先于熔断可见）');
-  // 8a 熔断机制（breakerThreshold=1：1 次失败即熔断——streak=1 未达 v26.1 摘除阈值，熔断直接可见）
+  console.log('[T8] 熔断分类：业务失败(NOT_FOUND)不熔断、网络错误触发熔断（v7.0 摘除优先于熔断可见）');
+  // 8a 熔断机制（breakerThreshold=1：1 次失败即熔断——streak=1 未达 v7.0 摘除阈值，熔断直接可见）
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
   globalThis.__lxSourceConfig = { breakerThreshold: 1, maxConcurrency: 100, rateWindowMax: 1000 };
@@ -258,7 +258,7 @@ async function test(name, fn) {
   assert.strictEqual(d.totalSuccess, 0, '探测样本不应计入 totalSuccess');
 
   console.log('[T11] v3.0 竞速结果匹配校验：verified 源优先，未校验源不抢答');
-  // 重置 T8/T10 累计状态（熔断 + v26.1 播放摘除）：重新加载实例
+  // 重置 T8/T10 累计状态（熔断 + v7.0 播放摘除）：重新加载实例
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
   globalThis.__lxSourceConfig = { maxConcurrency: 100, rateWindowMax: 1000 }; // 放宽本地节流：后续高频用例不挤占限速窗口
@@ -354,14 +354,14 @@ async function test(name, fn) {
   assert.ok(snap && typeof snap === 'object', '应返回快照对象');
   assert.ok(Object.keys(snap).length >= 14, `应覆盖全部源，实际${Object.keys(snap).length}个`);
   for (const id of Object.keys(snap)) {
-    if (id.startsWith('_')) continue; // v29.2：平台聚合等特殊字段，不参与子源校验
+    if (id.startsWith('_')) continue; // v8.0：平台聚合等特殊字段，不参与子源校验
     const s = snap[id];
     assert.ok(typeof s.name === 'string' && s.name.length > 0, `${id} 缺 name`);
     assert.ok(typeof s.enabled === 'boolean', `${id} 缺 enabled`);
     assert.ok(typeof s.successRate === 'number' || s.successRate === null, `${id} 缺 successRate(无样本可为null)`);
     assert.ok(typeof s.avgTime === 'number' || s.avgTime === null, `${id} 缺 avgTime(无样本可为null)`);
     assert.ok(['closed', 'open', 'half-open'].includes(s.state), `${id} state 异常: ${s.state}`);
-    // v27.4：健康分 10 分制（0~10，内部 0~1 ×10；负分保留——异常源可到 -9 量级）
+    // v7.0：健康分 10 分制（0~10，内部 0~1 ×10；负分保留——异常源可到 -9 量级）
     assert.ok(typeof s.healthScore === 'number' && s.healthScore >= -10 && s.healthScore <= 10, `${id} healthScore 越界: ${s.healthScore}`);
     assert.ok(typeof s.reqCount === 'number' && typeof s.probeCount === 'number', `${id} 缺样本计数`);
   }

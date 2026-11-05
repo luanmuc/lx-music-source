@@ -21,7 +21,7 @@
 | ③ 日志 + LRU 双层缓存 + 断路器 | 502~715 | `successCache`(6h/500) / `failCache`(5min/300)；熔断 3 次/3min + 半开试探 + 成功率/均时统计 + 健康分计算 |
 | ④ HTTP 封装 | 717~821 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
 | ⑤ 歌曲信息与匹配工具 | 823~986 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
-| ⑥ 音源实现 | 987~1645 | 20 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v27.2) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v18.0) / juheTx / juheWy / juheKg / juheMg(v18.1) / suyinMigu / changqingVip / nianxinVip |
+| ⑥ 音源实现 | 987~1645 | 20 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v7.0) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v4.0) / juheTx / juheWy / juheKg / juheMg(v4.0) / suyinMigu / changqingVip / nianxinVip |
 | ⑦ 注册表 + 调度 | 1646~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（前三源竞速 + 6s 整体超时 + 剩余串行）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
 | ⑧ 上报 + 事件监听 | 2066~2183 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
@@ -40,7 +40,7 @@ on(request musicUrl)
     5. 仍失败 → 写失败缓存，抛 NOT_FOUND（错误摘要含各源失败原因）
 ```
 
-### 3.2 音质降级链（v11.8 起）
+### 3.2 音质降级链（v1.0 起）
 
 - `QUALITY_PRIORITY = [flac24bit, flac, 320k, 128k]`；`QUALITY_FIRST = true` → 解析从**请求音质**开始，逐级向下，最多 3 级。
 - `QUALITY_RANK` 数值化音质，用于：① 源能力过滤（`maxQuality >= 请求` 才入链）；② 过期缓存兜底校验。
@@ -60,7 +60,7 @@ on(request musicUrl)
 - 探测歌曲池轮换（晴天/海阔天空/稻香）防单曲被风控导致误判；
 - 探测通过后若可提取 URL，**再做 Range 可播性二次校验**（`isAudioPlayable`），识破"网关 200 + CDN 签名过期 410"假存活。
 
-### 3.4b 健康分评分机制（v14.1 起，v27.4 输出改 10 分制）
+### 3.4b 健康分评分机制（v3.0 起，v7.0 输出改 10 分制）
 
 **公式**（`computeHealthScore`，真实请求样本主导、探测样本低权重 0.3）：
 
@@ -75,21 +75,21 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | 连续失败惩罚 | 每连败 1 次扣 0.08，封顶 0.5 |
 | 中性基线 | 无样本时 0.5（既非健康也非异常） |
 
-- **内部区间 0~1**（理论满分 1.0 不可达：样本越多 rateReal 越接近真实值 ≈0.998，仍需扣均时惩罚，实际满分级 ≈0.97）；**快照输出 ×10 为 10 分制**（v27.4 起，一位小数如 8.5），负分保留（严重异常源可到 −9 量级）
-- **消费方**：① `sortChainByHealth` 串行兜底按健康分降序；② 断路器/熔断阈值；③ v26.1 自动摘死源（连续失败摘除出链）；④ App 健康面板展示（v16.3 health action 快照）
-- **口径注意**：版权/业务失败（v17.0 copyrightFail）不计入成功率分母、不惩罚健康分；探测样本仅低权重参考（环境因素多）
+- **内部区间 0~1**（理论满分 1.0 不可达：样本越多 rateReal 越接近真实值 ≈0.998，仍需扣均时惩罚，实际满分级 ≈0.97）；**快照输出 ×10 为 10 分制**（v7.0 起，一位小数如 8.5），负分保留（严重异常源可到 −9 量级）
+- **消费方**：① `sortChainByHealth` 串行兜底按健康分降序；② 断路器/熔断阈值；③ v7.0 自动摘死源（连续失败摘除出链）；④ App 健康面板展示（v4.0 health action 快照）
+- **口径注意**：版权/业务失败（v4.0 copyrightFail）不计入成功率分母、不惩罚健康分；探测样本仅低权重参考（环境因素多）
 
 ### 3.5 缓存与防死链
 
-- 双层 LRU：成功 6h / 失败 5min；key 含 songId+名称+歌手+专辑+音质（v11.8 加 songId，防同名不同版本冲突）；
+- 双层 LRU：成功 6h / 失败 5min；key 含 songId+名称+歌手+专辑+音质（v1.0 加 songId，防同名不同版本冲突）；
 - 溯源酷我成功前必过 `isAudioPlayable`（Range 1KB），死链不计成功、不缓存 → 防止坏 URL 被 6h 缓存锁死；
 - 过期缓存兜底带音质校验（见 3.1 第 4 步）。
 
 ### 3.6 歌曲匹配
 
 - 搜索型源（溯音酷我/咪咕）用 `buildSearchKeywords` 生成三档关键词：歌名+专辑(strict) → 歌名+歌手(strict) → 纯歌名(非 strict)；
-- `songInfoMatch` 校验：歌名包含匹配 + 歌手/专辑辅助；`durationMatch` 已接入（v11.12）；
-- 已知限制：`normalizeKeyword` 会删除括号内容 → 「难却(15秒0.8x片段)」与「难却(DJ细霖版)」归一化后相同，v11.12 已用 FRAGMENT_RE + 兜底档校验封堵（见缺陷表）。
+- `songInfoMatch` 校验：歌名包含匹配 + 歌手/专辑辅助；`durationMatch` 已接入（v1.0）；
+- 已知限制：`normalizeKeyword` 会删除括号内容 → 「难却(15秒0.8x片段)」与「难却(DJ细霖版)」归一化后相同，v1.0 已用 FRAGMENT_RE + 兜底档校验封堵（见缺陷表）。
 
 ## 四、子源实测状态总表（2026-10-15 实测基线 + 2026-10-27 生态交叉验证）
 
@@ -103,7 +103,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | kuwoOfficial | kw | 128k | ✅ 自研 | img1.kwcdn.kuwo.cn 失效 / nmobi.kuwo.cn 异常 | ⚠️ 酷我 CDN 系不稳 → 强化 D3 双源 |
 | suyin163 | wy | 128k | ✅ | oiapi.net = 可用 | ✅ |
 | gdWy | wy | flac/320k | ✅ 高音质链 | music-api.gdstudio.xyz = 可用 | ✅ |
-| xinghaiBackend | kw | 128k/320k/flac | ✅ 三档 | zddyr.top = 可用 | ✅（v12.0 已接入：E10 实测四档 code 200/206 可播/ID3 对应；URL http→https 升级） |
+| xinghaiBackend | kw | 128k/320k/flac | ✅ 三档 | zddyr.top = 可用 | ✅（v1.0 已接入：E10 实测四档 code 200/206 可播/ID3 对应；URL http→https 升级） |
 | changqingVip / nianxinVip | kw | 128k | ✅ 302 直链 | music.nxinxz.com(念心) = 可用；musicapi.haitangw.net / 175.27.166.236 / music.haitangw.cc(长青) = 异常 | ⚠️ 念心独立验证可用；长青系整体"异常"，与"长青仅 kw 可用"吻合 |
 | suyinQQ | tx | — | ❌ 关闭 | oiapi.net 可用（源 API 活着） | ⚠️ 上游活着，是接口级 -403 → 有机会恢复 |
 | suyinMigu | mg | — | ❌ 关闭 | **api.xcvts.cn = 可用** | 🔴 **关键分歧**：上游活着，本仓库 502 是 IP 封禁 → 值得测备用域名/换 IP |
@@ -120,17 +120,17 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 | # | 缺陷 | 影响 | 位置 |
 |---|---|---|---|
-| D1 | **匹配错歌**：`normalizeKeyword` 删括号 → 片段版与完整版归一化相同 | 播放"能播但播错歌" | ✅ v11.12 已修复（FRAGMENT_RE + 兜底档校验） |
-| D2 | **明文 http 链**：kw CDN 链为 http | 部分网络播不了高音质 | ✅ v11.12 已修复（upgradeToHttps） |
-| D3 | **kw 高音质单点**：flac/320k 仅溯音酷我一路 | kw 高音质可用性脆弱（叠加酷我 CDN 不稳，见第四节） | ✅ v12.0 已修复（星海后端接入 kw flac/320k 双源，E10 实测；断溯音后星海可独立 Range 206） |
-| D4 | durationMatch 未接入 | 时长维度错歌防线缺失 | ✅ v11.12 已接入 |
-| D5 | 健康探测开销：一轮 ~7 源 + Range，每 10 分钟 | 上行流量/风控轻度风险 | 已知限制：探测独立定时运行（未并入竞速），v19.2 起连续通过≥5轮降频为每2轮一探，已缓解 |
+| D1 | **匹配错歌**：`normalizeKeyword` 删括号 → 片段版与完整版归一化相同 | 播放"能播但播错歌" | ✅ v1.0 已修复（FRAGMENT_RE + 兜底档校验） |
+| D2 | **明文 http 链**：kw CDN 链为 http | 部分网络播不了高音质 | ✅ v1.0 已修复（upgradeToHttps） |
+| D3 | **kw 高音质单点**：flac/320k 仅溯音酷我一路 | kw 高音质可用性脆弱（叠加酷我 CDN 不稳，见第四节） | ✅ v1.0 已修复（星海后端接入 kw flac/320k 双源，E10 实测；断溯音后星海可独立 Range 206） |
+| D4 | durationMatch 未接入 | 时长维度错歌防线缺失 | ✅ v1.0 已接入 |
+| D5 | 健康探测开销：一轮 ~7 源 + Range，每 10 分钟 | 上行流量/风控轻度风险 | 已知限制：探测独立定时运行（未并入竞速），v4.0 起连续通过≥5轮降频为每2轮一探，已缓解 |
 | D6 | 非 strict 档校验、gdWy 无歌名校验 | 兜底源可能放错歌 | ✅ 兜底档已修；gdWy 按 id 直链保持已知限制 |
 | D7 | 探测状态多运行时各自独立 | 不共享，可接受 | 保持 |
-| D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v11.12 已修复 |
-| D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v11.12 已修复 |
-| D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v11.12 已清理 |
-| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ✅ v11.13 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
+| D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v1.0 已修复 |
+| D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v1.0 已修复 |
+| D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v1.0 已清理 |
+| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ✅ v1.0 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
 | D12 | **smoke-test 覆盖缺口**：32 组用例覆盖请求/缓存/熔断/日志/歌词/封面，但缺 action 类（health/toggle/probe）+ 降级链 + 竞速回退 + 摘死源 用例 | 下次改代码时若误动降级链/竞速/摘死逻辑，smoke-test 不会报警，可能带着 bug 发版 | ✅ 已大部分覆盖（2026-11-05 核实：T15 健康 action、T16 toggle/probe、T31 自动摘死源、T4 竞速主路径均已补齐；剩余降级链/竞速回退专项低风险，v9.x 顺带补） |
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
@@ -151,7 +151,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `lx.utils` | buffer / crypto(md5, randomBytes, aesEncrypt, rsaEncrypt) / zlib | 官方移动版子集：**zlib 未实现**；buffer 仅 base64/hex/utf8；aes 仅 cbc/ecb | 仅用 md5 → 无依赖风险 | 合规 |
 | 移动版宿主 API | **仅 `setTimeout/clearTimeout`**；内置属性冻结（可扩展新属性，不可改写） | 同官方；**preload 未注入 console** | ⚠️ **代码依赖 `console.log/warn/error`（LOG_ENABLED=true，主路径调用）→ 移动端真机可能抛 ReferenceError** | **风险，见缺陷 D11** |
 | 移动版 `inited` | 无 `openDevTools` | 无 | 未传 | 合规 |
-| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | ✅ 已使用（v12.3 起发版通知，仅调一次，宿主无事件自动跳过） | 合规 |
+| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | ✅ 已使用（v1.0 起发版通知，仅调一次，宿主无事件自动跳过） | 合规 |
 
 **合规结论**：本仓库与官方协议（移动版 v2.0.0）**完全对齐，无分叉**；fork 的扩展点（`binary`）不影响脚本侧。协议层无需返工，唯一待补的是 `updateAlert` 发版通知。
 
@@ -286,14 +286,14 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 |---|---|---|---|
 | 增 | 接入闸门（默认关 → Range 206 → 两轮探测 → 真实播放才开） | ✅ 制度化（AGENTS.md + 测试清单） | — |
 | 增 | 候选观察池（见下） | ✅ 已建立 | — |
-| 增 | 例行生态扫描 | ✅ v26.3 已脚本化（scripts/ecosystem-scan.js，纳入迭代协议） | v26.3 ✅ |
-| 活 | 运行时防护（断路器/Range 二次校验/失败缓存差异化） | ✅ 已有 | v12.1 ✅ |
-| 活 | 分级响应（IP 封禁→换域/代理；接口 -403→跟踪；签名 410→短缓存；域名死→摘除标注） | ✅ 已有 | v12.1/v12.2 ✅ |
-| 活 | 每日自动巡检健康表 | ✅ scripts/probe.js + CI 写回 README_HEALTH.md | v13.1 ✅ |
+| 增 | 例行生态扫描 | ✅ v7.0 已脚本化（scripts/ecosystem-scan.js，纳入迭代协议） | v7.0 ✅ |
+| 活 | 运行时防护（断路器/Range 二次校验/失败缓存差异化） | ✅ 已有 | v1.0 ✅ |
+| 活 | 分级响应（IP 封禁→换域/代理；接口 -403→跟踪；签名 410→短缓存；域名死→摘除标注） | ✅ 已有 | v1.0/v1.0 ✅ |
+| 活 | 每日自动巡检健康表 | ✅ scripts/probe.js + CI 写回 README_HEALTH.md | v2.0 ✅ |
 | 衰 | 健康排序降权（sortChainByHealth） | ✅ 已有 | — |
-| 衰 | **自动摘死源**（播放连续失败→摘除，复活三路径） | ✅ v26.1 已交付（2026-10-29） | v26.1 ✅ |
+| 衰 | **自动摘死源**（播放连续失败→摘除，复活三路径） | ✅ v7.0 已交付（2026-10-29） | v7.0 ✅ |
 | 衰 | 死源档案（函数保留 + 原因注释 + README 标注） | ✅ 已有 | 制度化 |
-| 替 | 单点替换（双源并行 → 逐步切换） | ✅ v12.0（kw 高音质双源） | v12.0 ✅ |
+| 替 | 单点替换（双源并行 → 逐步切换） | ✅ v1.0（kw 高音质双源） | v1.0 ✅ |
 | 替 | 平台降级（全死 → 跨平台兜底） | ✅ 已有 | — |
 | 替 | 架构根治（自建网关） | ❌ 已判否（需服务器） | — |
 
@@ -304,11 +304,11 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | mg 真源恢复（溯音咪咕/Juhe mg） | mg 真源 | ❌ **已判否**（2026-10-29 实测：溯音 502 IP 封禁未解除、Juhe mg 400）；mg 平台走溯音酷我搜索兜底 | 见"已判否的候选" |
 | yunmge（云萌阁） | kw 备胎 | ❌ 已判否（2026-10-29）：Gitee 组织仅 PHP 短视频解析仓库，无音乐上游、需服务器 | 旧 P1-1 候选，已实证移除 |
 | 溯音QQ 上游修复 | tx 恢复 | ⏳ 跟踪中（触发驱动） | `oiapi.net/api/QQ_Music` 连续 5 天 403（2026-11-01 进死源建议）；Music_163/Kuwo 仍可用 |
-| gdWy 主端点波动 | wy 核心源监控 | 🟡 监测中（2026-11-01：403，近 7 日 20%） | music-api.gdstudio.xyz；连续 ≥3 天失败升级为迭代任务（v16.2 流程） |
+| gdWy 主端点波动 | wy 核心源监控 | 🟡 监测中（2026-11-01：403，近 7 日 20%） | music-api.gdstudio.xyz；连续 ≥3 天失败升级为迭代任务（v4.0 流程） |
 | helloworldKw 备用通道 | kw 备胎 | 🟡 监测中（resolve-url 404，0/4 天） | 主通道 convert_url_with_sign 仍可用；备用通道失效不阻断 |
 | 酷我官方 CDN 稳定化 | kuwoOfficial 加固 | 🟡 监测中 | kwcdn/nmobi 异常（nmobi 404）；已有多路兜底稀释风险 |
 | xm（汽水音乐） | 新平台扩展 | ❌ **已判否**（2026-10-29 三层实证：无接口/App 空壳/无歌源渠道） | 见"已判否的候选" |
-| fish（鱼源） | kw/wy 备胎（v27.1 候选） | ❌ **已判否**（2026-10-29 三层实证：后端给可用直链脚本不用/官方接口 -462 风控/kw 音质校验失败，端到端不可用） | 见"已判否的候选" |
+| fish（鱼源） | kw/wy 备胎（v7.0 候选） | ❌ **已判否**（2026-10-29 三层实证：后端给可用直链脚本不用/官方接口 -462 风控/kw 音质校验失败，端到端不可用） | 见"已判否的候选" |
 
 ## 八、测试清单（发布前必做）
 
@@ -325,7 +325,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 6. **缓存行为**：同一首歌二次请求命中缓存；换音质 key 不同不串；失败缓存差异化（404→1h 不重试 / 410→1min / 网络错误→立即重试）；
 7. **健康探测**：启动后首轮 ~1min 内完成，自动启用/停用行为正确；
 8. **移动端真机日志验证**（D11 专项）：装包后确认无 `ReferenceError: console is not defined`；健康探测正常启动、请求路径无异常——**此条在修复 D11 后转为抽查项**；
-9. **例行生态扫描**（v26.3 起脚本化）：`node scripts/ecosystem-scan.js`（可加 `--json` 供 CI）抓 pdone 每日健康表交叉对比，产出新候选（pdone 可用、本仓库未接入）与失效清单；新候选按 L2 真实取链 + Range 206 + 魔数/码率实测后才接入，不凭 pdone 状态直接接入。建议每轮迭代前或发现源异常时跑。
+9. **例行生态扫描**（v7.0 起脚本化）：`node scripts/ecosystem-scan.js`（可加 `--json` 供 CI）抓 pdone 每日健康表交叉对比，产出新候选（pdone 可用、本仓库未接入）与失效清单；新候选按 L2 真实取链 + Range 206 + 魔数/码率实测后才接入，不凭 pdone 状态直接接入。建议每轮迭代前或发现源异常时跑。
 
 ## 九、发布 SOP（每次迭代必须走完）
 
@@ -333,10 +333,10 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 2. **验**：跑完第八节测试清单；
 3. **提交**：`git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master`（**push 前先 pull --rebase**，防远端冲突；功能级改动走分支 + PR，见 AGENTS.md）；
 4. **发**：GitHub Releases 创建 `vX.Y`：标题 `聚合音源 vX.Y …`、正文 = 变更说明 + 实测结论、附件 = 当前 `lx-source.js`；
-5. **通知**（v12.3 起）：`updateAlert` 事件随版本发送，用户 App 内可见更新弹窗；
+5. **通知**（v1.0 起）：`updateAlert` 事件随版本发送，用户 App 内可见更新弹窗；
 6. **联动**（需要 App 内置新音源时）：触发 `mobile-app` 的 release.yml（`workflow_dispatch` 或 push 空提交）；
 7. **留档**：`versions/` 目录归档带版本号副本，防误删回滚。
-8. **发布后监控**（v16.2 起）：Release 发布触发 CI 端点巡检（`release: published`），生成发布后基线健康表（含近 7 日成功率与「死源建议」清单）；发版后 3 天内关注健康表核心源（gdWy/xinghaiBackend/suyinKuwo/suyin163/wyOuter）成功率——若核心源连续失败（连续 ≥3 天）说明新版本引入回归，应回滚上一版并排查；死源建议清单是下一轮迭代「摘除/留档」的输入。
+8. **发布后监控**（v4.0 起）：Release 发布触发 CI 端点巡检（`release: published`），生成发布后基线健康表（含近 7 日成功率与「死源建议」清单）；发版后 3 天内关注健康表核心源（gdWy/xinghaiBackend/suyinKuwo/suyin163/wyOuter）成功率——若核心源连续失败（连续 ≥3 天）说明新版本引入回归，应回滚上一版并排查；死源建议清单是下一轮迭代「摘除/留档」的输入。
 
 ## 十、版本规划备忘（2026-10-29 实证重订）
 

@@ -22,15 +22,15 @@ const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
 const HIST_DIR = path.join(__dirname, '..', 'docs');
 const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
 const HISTORY_DAYS = 7; // v4.0：近 7 日成功率窗口
-const CONCURRENCY = 5; // v29.6：并发池——同时最多 5 个请求，避免被风控封 IP
-const DEAD_STREAK_THRESHOLD = 3; // v16.1：连续失败天数阈值
-const UA_POOL = [ // v29.6：UA 池轮换，降低被风控概率
+const CONCURRENCY = 5; // v8.0：并发池——同时最多 5 个请求，避免被风控封 IP
+const DEAD_STREAK_THRESHOLD = 3; // v4.0：连续失败天数阈值
+const UA_POOL = [ // v8.0：UA 池轮换，降低被风控概率
   'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'lx-source-probe/1.0',
 ];
 
-// v29.5：平台映射表——用于自动生成 README.md 的"音源可用性"表格
+// v8.0：平台映射表——用于自动生成 README.md 的"音源可用性"表格
 // 每个平台关联一组端点关键词（匹配 URL 子串），自动汇总状态
 const PLATFORM_MAP = [
   {
@@ -42,7 +42,7 @@ const PLATFORM_MAP = [
   {
     name: '酷我 kw',
     qualities: '128k / 320k / flac',
-    mainSources: '溯音酷我 + 星海后端（双源 v12.0）',
+    mainSources: '溯音酷我 + 星海后端（双源 v1.0）',
     endpointKeys: ['oiapi.net/api/Kuwo', 'zddyr.top', 'search.kuwo.cn', 'antiserver.kuwo.cn', 'nmobi.kuwo.cn'],
   },
   {
@@ -125,7 +125,7 @@ function aggregateHistory() {
   return stats;
 }
 
-// v16.1：死源建议阈值——连续失败天数 ≥ 该值即建议关闭（写回健康表留档，供迭代时摘除）
+// v4.0：死源建议阈值——连续失败天数 ≥ 该值即建议关闭（写回健康表留档，供迭代时摘除）
 function collectDeadSources(hist, results) {
   const dead = [];
   const urlByResult = new Map(results.map(r => [r.url, r]));
@@ -148,13 +148,13 @@ function extractEndpoints(src) {
     if (u.includes('{id}') || u.includes('{level}')) continue; // 模板 URL 跳过（无真实参数无法探测）
     urls.add(u);
   }
-  // 过滤明显非 API 的示例/文档 URL（v27.3 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
+  // 过滤明显非 API 的示例/文档 URL（v7.0 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
   // 加 `kuwo` 关键词——正则白名单化后 nmobi.kuwo.cn/mobi.s(helloworldKw 主通道 convert_url_with_sign)
   // 不含 api/music/search 等关键词会被误过滤，导致新源主通道脱离端点巡检）
   return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${'));
 }
 
-// v29.6：并发池——限制同时最多 N 个请求，避免被上游风控
+// v8.0：并发池——限制同时最多 N 个请求，避免被上游风控
 async function poolRun(tasks, concurrency) {
   const results = new Array(tasks.length);
   let i = 0;
@@ -179,7 +179,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
     const req = lib.get(url, { headers: { 'User-Agent': ua, 'Range': 'bytes=0-1023' }, timeout: timeoutMs }, res => {
       const status = res.statusCode || 0;
       res.resume();
-      // v29.6：403/429 不算可用——被封/限流等于不能用
+      // v8.0：403/429 不算可用——被封/限流等于不能用
       const ok = quick
         ? (status >= 200 && status < 400) // quick 模式：2xx/3xx 可用，4xx/5xx 不可用
         : (status === 206 || (status >= 200 && status < 400));
@@ -187,12 +187,12 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
     });
     req.on('timeout', () => {
       req.destroy();
-      // v29.6：超时重试 1 次（减少网络抖动误判）
+      // v8.0：超时重试 1 次（减少网络抖动误判）
       if (retry) return resolve(probeUrl(url, timeoutMs, false));
       resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: 'TIMEOUT' });
     });
     req.on('error', e => {
-      // v29.6：网络错误重试 1 次
+      // v8.0：网络错误重试 1 次
       if (retry && (e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.code === 'ENOTFOUND')) {
         return resolve(probeUrl(url, timeoutMs, false));
       }
@@ -206,7 +206,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   const endpoints = extractEndpoints(src);
   if (!endpoints.length) { console.error('未提取到端点'); process.exit(1); }
 
-  // v29.6：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
+  // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
   const results = await poolRun(endpoints.map(u => () => probeUrl(u)), CONCURRENCY);
   const okCount = results.filter(r => r.ok).length;
 
@@ -215,13 +215,13 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
     process.exit(okCount === results.length ? 0 : 2);
   }
 
-  // 健康表写回 README_HEALTH.md（CI 每日刷新；v13.1 写回目标，README 引用它）
+  // 健康表写回 README_HEALTH.md（CI 每日刷新；v2.0 写回目标，README 引用它）
   // v4.0：追加本次结果到历史 + 近7日成功率列
   const today = appendHistory(results);
   const hist = aggregateHistory();
   const dead = collectDeadSources(hist, results);
 
-  // v29.6：平台级健康汇总——按 PLATFORM_MAP 分组统计
+  // v8.0：平台级健康汇总——按 PLATFORM_MAP 分组统计
   function platformSummary() {
     const lines = [];
     lines.push('### 平台健康汇总');
@@ -251,7 +251,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 近7日成功率 | 说明 |');
   lines.push('|---|---|---|---|---|---|');
   for (const r of results) {
-    // v29.6：恢复标记——历史有失败但当前恢复了，加 🟡 "已恢复观察中"
+    // v8.0：恢复标记——历史有失败但当前恢复了，加 🟡 "已恢复观察中"
     const h = hist[r.url];
     let tag = r.ok ? '✅ 可用' : '❌ 失败';
     if (r.ok && h && h.streak > 0) tag = '🟡 已恢复观察中';
@@ -259,12 +259,12 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
     const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
     lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);
   }
-  // v16.1：死源建议——连续 DEAD_STREAK_THRESHOLD 天以上失败的端点，建议关闭留档
+  // v4.0：死源建议——连续 DEAD_STREAK_THRESHOLD 天以上失败的端点，建议关闭留档
   if (dead.length) {
     lines.push('');
     lines.push(`## ⚠️ 死源建议（连续 ${DEAD_STREAK_THRESHOLD} 天以上失败，供迭代时摘除/留档）`);
     lines.push('');
-    // v29.6：按平台分组——紧急（主路全挂）vs 次要（备用源挂）
+    // v8.0：按平台分组——紧急（主路全挂）vs 次要（备用源挂）
     const urgent = [];
     const minor = [];
     for (const d of dead) {
@@ -292,12 +292,12 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
   console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);
 
-  // v29.6：自动更新 README.md 里的"音源可用性"表格（日期 + 状态 + 原因标注）
+  // v8.0：自动更新 README.md 里的"音源可用性"表格（日期 + 状态 + 原因标注）
   const README = path.join(__dirname, '..', 'README.md');
   const readmeContent = fs.readFileSync(README, 'utf8');
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-  // v29.6：原因标注——把 HTTP 状态码翻译成可读的原因
+  // v8.0：原因标注——把 HTTP 状态码翻译成可读的原因
   function reasonLabel(status, reason) {
     if (status === 403) return '403 被封';
     if (status === 429) return '429 限流';
@@ -342,7 +342,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
 |---|---|---|---|
 ${tableRows}
 
-> 详细对照表、缺陷与**后续规划（v27 系列新候选实证接入 / v8.0 健康日报 / v29 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
+> 详细对照表、缺陷与**后续规划（v7.0 系列新候选实证接入 / v8.0 健康日报 / v8.0 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
   );
 
   if (updatedReadme !== readmeContent) {
@@ -350,7 +350,7 @@ ${tableRows}
     console.log(`已自动更新 README.md 音源可用性表格（日期 ${todayStr}）`);
   }
 
-  // v29.6：退出码优化——只有"某平台主路全挂"才 exit(2)，单个备用源失败不退出
+  // v8.0：退出码优化——只有"某平台主路全挂"才 exit(2)，单个备用源失败不退出
   // 避免每天 CI 都是红色的，用户麻木了反而忽略真正紧急的问题
   const allPlatformsDown = PLATFORM_MAP.every(p => {
     if (!p.endpointKeys.length) return false; // 没有独立源的平台跳过

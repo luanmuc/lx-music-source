@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v23.1 发布前自检门（L2）：
+ * v5.0 发布前自检门（L2）：
  *   1. @version 与 logInfo「豆包定制聚合音源 vX.Y」同步（App 内置升级正则依赖，b38 教训）
  *   2. sourceConfig 各平台 actions 声明齐全（health/toggle/probe 全平台，lyric/pic 按平台）
  *   3. README 版本历史存在当前版本条目
@@ -23,7 +23,7 @@ const verHeaderMatch = src.match(/@version\s+(\S+)/);
 const verLogMatch = src.match(/豆包定制聚合音源\s+v(\S+)/);
 const verHeader = verHeaderMatch ? verHeaderMatch[1] : null;
 const verLog = verLogMatch ? verLogMatch[1] : null;
-// v25.6：@description 首行 = @version（三处铁律补全——旧自检漏检 @description，漏改不会被拦）
+// v6.0：@description 首行 = @version（三处铁律补全——旧自检漏检 @description，漏改不会被拦）
 const descMatch = src.match(/@description\s+([^\n]*)/);
 const descFirst = descMatch ? descMatch[1].trim().split(/\s+/)[0] : null;
 if (!verHeader) fail('lx-source.js 缺少 @version');
@@ -33,7 +33,7 @@ if (verHeader && descFirst && descFirst !== 'v' + verHeader) fail('@description 
 
 // 2) actions 声明齐全
 const cfgIdx = src.indexOf('const sourceConfig');
-// v25.6：sourceConfig actions 构建块动态定位（旧实现 slice(cfgIdx, cfgIdx+1500) 固定窗口——块增长超窗口会静默漏检）
+// v6.0：sourceConfig actions 构建块动态定位（旧实现 slice(cfgIdx, cfgIdx+1500) 固定窗口——块增长超窗口会静默漏检）
 const actionAnchor = src.indexOf('const actions = ["musicUrl"]', cfgIdx);
 const actionBlock = src.slice(actionAnchor === -1 ? cfgIdx : actionAnchor, (actionAnchor === -1 ? cfgIdx : actionAnchor) + 500);
 if (cfgIdx === -1) fail('sourceConfig 定义缺失');
@@ -46,7 +46,7 @@ for (const plat of ['wy', 'tx', 'kw', 'kg', 'mg']) {
 for (const act of ['health', 'toggle', 'probe']) {
   if (!actionBlock.includes(act)) fail('sourceConfig 构建块缺少 ' + act);
 }
-// v29.9：补 config / trend action 检查（v29.3/v29.4 新增，旧自检漏检）
+// v8.0：补 config / trend action 检查（v8.0/v8.0 新增，旧自检漏检）
 for (const act of ['config', 'trend']) {
   if (!actionBlock.includes(act)) fail('sourceConfig 构建块缺少 ' + act);
 }
