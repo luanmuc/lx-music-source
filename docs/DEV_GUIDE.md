@@ -112,7 +112,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | lingchuan / ikun | 多平台 | — | ❌ 关闭 | api.lingchuan.com / api.ikunshare.com / gc.kxwa.top = 失效 | ✅ 需卡密/配置源，不做主力 |
 
 **交叉验证的三个规划含义**：
-1. **溯音咪咕（mg）有机会**：pdone 的 CI 显示 `api.xcvts.cn` 可用，本仓库 502 是 IP 维度封禁 → v12 值得测"备用域名/代理"路线恢复 mg。
+1. **溯音咪咕（mg）有机会**：pdone 的 CI 显示 `api.xcvts.cn` 可用，本仓库 502 是 IP 维度封禁 → 当时（v3.0 时代）规划测"备用域名/代理"路线恢复 mg，v7.0 已实测判否（溯音咪咕 502 IP 封禁未解除，见七章）。
 2. **溯音QQ（tx）有机会**：源 API（oiapi.net）活着，-403 是接口级 → 可跟踪上游修复。
 3. **酷我 CDN 系不稳**（kwcdn/mobi.kuwo.cn 异常/失效）→ `kuwoOfficial` 有单点风险，**kw 高音质第二来源（D3）比预想更紧迫**。
 
@@ -130,7 +130,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v1.0 已修复 |
 | D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v1.0 已修复 |
 | D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v1.0 已清理 |
-| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载日志（第 1281 行）抛错会阻断健康探测启动 | ✅ v1.0 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
+| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载阶段日志（safeConsole/logInfo 定义区，见 lx-source.js L528~538）抛错会阻断健康探测启动 | ✅ v1.0 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
 | D12 | **smoke-test 覆盖缺口**：32 组用例覆盖请求/缓存/熔断/日志/歌词/封面，但缺 action 类（health/toggle/probe）+ 降级链 + 竞速回退 + 摘死源 用例 | 下次改代码时若误动降级链/竞速/摘死逻辑，smoke-test 不会报警，可能带着 bug 发版 | ✅ 已大部分覆盖（2026-11-05 核实：T15 健康 action、T16 toggle/probe、T31 自动摘死源、T4 竞速主路径均已补齐；剩余降级链/竞速回退专项低风险，v9.x 顺带补） |
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
