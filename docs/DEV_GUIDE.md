@@ -151,9 +151,9 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `lx.utils` | buffer / crypto(md5, randomBytes, aesEncrypt, rsaEncrypt) / zlib | 官方移动版子集：**zlib 未实现**；buffer 仅 base64/hex/utf8；aes 仅 cbc/ecb | 仅用 md5 → 无依赖风险 | 合规 |
 | 移动版宿主 API | **仅 `setTimeout/clearTimeout`**；内置属性冻结（可扩展新属性，不可改写） | 同官方；**preload 未注入 console** | ⚠️ **代码依赖 `console.log/warn/error`（LOG_ENABLED=true，主路径调用）→ 移动端真机可能抛 ReferenceError** | **风险，见缺陷 D11** |
 | 移动版 `inited` | 无 `openDevTools` | 无 | 未传 | 合规 |
-| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** | ✅ 已使用（v1.0 起发版通知，仅调一次，宿主无事件自动跳过） | 合规 |
+| `updateAlert` | 源 v1.2.0+：`{log≤1024, updateUrl≤1024}`，每次运行仅一次 | 支持；**fork 实现：第二次调用 `reject(new Error('The update alert can only be called once.'))`** |  ⛔ **已停用（v16.5.1 按用户要求关闭：每次加载/导入不再弹更新提示，见 @description）** | 合规 |
 
-**合规结论**：本仓库与官方协议（移动版 v2.0.0）**完全对齐，无分叉**；fork 的扩展点（`binary`）不影响脚本侧。协议层无需返工，唯一待补的是 `updateAlert` 发版通知。
+**合规结论**：本仓库与官方协议（移动版 v2.0.0）**完全对齐，无分叉**；fork 的扩展点（`binary`）不影响脚本侧。协议层无需返工；`updateAlert` 发版通知已按用户要求停用（v16.5.1，见九章）。
 
 ## 七、升级优化规划（2026-10-29 实证重订）
 
@@ -333,9 +333,9 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 2. **验**：跑完第八节测试清单；
 3. **提交**：`git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master`（**push 前先 pull --rebase**，防远端冲突；功能级改动走分支 + PR，见 AGENTS.md）；
 4. **发**：GitHub Releases 创建 `vX.Y`：标题 `聚合音源 vX.Y …`、正文 = 变更说明 + 实测结论、附件 = 当前 `lx-source.js`；
-5. **通知**（v1.0 起）：`updateAlert` 事件随版本发送，用户 App 内可见更新弹窗；
+5. **通知**（已停用 v16.5.1）：`updateAlert` 发版弹窗已按用户要求关闭（每次加载/导入不再弹），版本信息看 logInfo/Release；
 6. **联动**（需要 App 内置新音源时）：触发 `mobile-app` 的 release.yml（`workflow_dispatch` 或 push 空提交）；
-7. **留档**：`versions/` 目录归档带版本号副本，防误删回滚。
+7. **留档**：发布以 Git tag + GitHub Release 归档（tag `vX.Y` 指向发布提交，Release 附件 = 该版本 `lx-source.js`），无需本地 versions/ 目录；
 8. **发布后监控**（v4.0 起）：Release 发布触发 CI 端点巡检（`release: published`），生成发布后基线健康表（含近 7 日成功率与「死源建议」清单）；发版后 3 天内关注健康表核心源（gdWy/xinghaiBackend/suyinKuwo/suyin163/wyOuter）成功率——若核心源连续失败（连续 ≥3 天）说明新版本引入回归，应回滚上一版并排查；死源建议清单是下一轮迭代「摘除/留档」的输入。
 
 ## 十、版本规划备忘（2026-10-29 实证重订）
