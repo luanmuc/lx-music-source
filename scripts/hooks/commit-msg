@@ -1,0 +1,7 @@
+#!/bin/sh
+# 文档同步强制校验（commit-msg 阶段）：改代码不带文档 → 拒绝（可用 --no-verify 绕过）
+ROOT=$(git rev-parse --show-toplevel)
+if [ -f "$ROOT/scripts/doc-sync-map.js" ]; then
+  node "$ROOT/scripts/doc-sync-map.js" --check || exit 1
+fi
+exit 0

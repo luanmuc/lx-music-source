@@ -1,0 +1,6 @@
+#!/bin/sh
+# 文档同步清单（commit 时自动显示）：调用 doc-sync-map.js 列出本次需同步文档
+ROOT=$(git rev-parse --show-toplevel)
+if [ -f "$ROOT/scripts/doc-sync-map.js" ]; then
+  node "$ROOT/scripts/doc-sync-map.js"
+fi

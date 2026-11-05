@@ -61,7 +61,18 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
    - 若其他账号已完成同一主题（如候选实证判否、版本号规划），直接复用其结论、合并到自己的文档行，不重复劳动；
    - **额度中断恢复时**：先 fetch 看远端状态，确认上次中断在哪一步（代码已改未推 / 文档未同步 / 自检未跑），从断点继续，不从头重做。
 
+## 文档同步 Hook（提交时自动提示，新账号必装）
+
+> 保证"任意账号任意提交，第一时间知道该更新哪些文档，并同提交更新"。机制：入库 git hook（`scripts/hooks/`）+ 映射脚本（`scripts/doc-sync-map.js`，改动文件 → 必同步文档清单）。
+
+1. **新账号 clone 后安装一次**：`sh scripts/install-hooks.sh`（等价 `git config core.hooksPath scripts/hooks`）；
+2. **prepare-commit-msg**：每次 `git commit` 自动打印「📋 本次改动触发的必同步文档清单」——照单在同提交内更新文档；
+3. **commit-msg 强制校验**：改动含代码/脚本（lx-source.js、test/、scripts/）但提交不含任何文档更新 → 拒绝提交（确认无需文档时 `git commit --no-verify` 绕过）；
+4. 清单中的「跨仓库 action」提示（如音源能力变更 → mobile 按 SYNC_POINTS 核对）同样要处理：通知 mobile 侧账号或自己到对方仓库同步；
+5. 规则表维护：新增映射在 `scripts/doc-sync-map.js` 的 `RULES` 加一行即可（活文档原则）。
+
 ## 文档同步规范（强制，无需提醒）
+
 
 > 任何功能/修复/版本改动落地后，**必须主动同步更新本仓库全部相关文档**，不等用户提醒。与 App 仓库（mobile-app AGENTS.md「文档同步规范」）同标准。
 
