@@ -130,7 +130,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | D8 | 断路器把业务失败计熔断 | 健康源被误熔断 | ✅ v1.0 已修复 |
 | D9 | gdWy/suyin163 探测缺 Range、不轮换 | 假存活/单曲风控误判 | ✅ v1.0 已修复 |
 | D10 | 双降级逻辑并存 + 死函数 + 重复实现 | 维护成本 | ✅ v1.0 已清理 |
-| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载阶段日志（safeConsole/logInfo 定义区，见 lx-source.js L528~538）抛错会阻断健康探测启动 | ✅ v1.0 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包待验证**） |
+| D11 | **console 依赖风险**：`LOG_ENABLED=true` 且 `logInfo/logWarn/logError` 直接调用 `console.*`（健康探测/断路器/请求主路径均有调用）；但官方移动版文档「可用宿主环境 API」仅列 `setTimeout/clearTimeout`，fork `user-api-preload.js` 亦未注入 console | 移动端真机若 console 未定义：请求主路径的 logWarn（如熔断触发）直接抛 ReferenceError → **本应成功的请求变失败**；加载阶段日志（safeConsole/logInfo 定义区，见 lx-source.js L528~538）抛错会阻断健康探测启动 | ✅ v1.0 已修复（safeConsole 宿主防御；vm 无 console 沙箱验证：修复前加载抛 TypeError 复现，修复后加载/请求/探测/熔断全路径通过；**真机装包已验证通过（2026-11-05 用户真机确认：加载/请求/日志全路径正常）**） |
 | D12 | **smoke-test 覆盖缺口**：32 组用例覆盖请求/缓存/熔断/日志/歌词/封面，但缺 action 类（health/toggle/probe）+ 降级链 + 竞速回退 + 摘死源 用例 | 下次改代码时若误动降级链/竞速/摘死逻辑，smoke-test 不会报警，可能带着 bug 发版 | ✅ 已大部分覆盖（2026-11-05 核实：T15 健康 action、T16 toggle/probe、T31 自动摘死源、T4 竞速主路径均已补齐；剩余降级链/竞速回退专项低风险，暂无排期（原计划 v9.x 顺带补，v9 系列已放弃 2026-11-05）） |
 
 ## 六、官方协议合规对照（2026-10-27 实证核验）
