@@ -22,7 +22,7 @@
 | # | 维度 | 深度要求 | 状态 | 备注 |
 |---|---|---|---|---|
 | A1 | 语法/运行时正确性 | node --check + mock 宿主全路径加载 | ✅ | |
-| A2 | 错误处理完整性 | async 函数 try/catch 全覆盖，错误码结构化 | ✅ | 31 个 async 函数，内部辅助全有 try/catch |
+| A2 | 错误处理完整性 | async 函数 try/catch 全覆盖，错误码结构化 | ✅ | 30 个 async 函数（2026-11-05 复核）：入口 wrapExecute/handler 全有 try/catch 兜底；6 个辅助函数（getLyricForPlatform/getPicForPlatform/kuwoOfficialGetUrl/suyin 系）为「校验 throw + 转发」型，抛错由外层统一捕获，架构合理；错误码结构化 |
 | A3 | 安全审计 | HTTP 明文/敏感信息硬编码/URL 注入 | ✅ | API 端点 http 正常（返回链有 upgradeToHttps） |
 | A4 | 沙箱兼容性 | VM 限制 API（setInterval/console/全局变量） | ✅ | v6.0 setInterval→setTimeout；safeConsole 宿主防御 |
 | A5 | 性能与内存 | 全局 Map 边界/LRU 上限/reqTimestamps 窗口/inflightCount 清理 | ✅ | LRU 500+300 有界；全局 Map 按 sourceId key 固定 20 个 |
