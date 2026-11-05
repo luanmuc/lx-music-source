@@ -212,7 +212,7 @@ async function test(name, fn) {
   delete globalThis.__lxSourceConfig;
   // 说明：v7.0 起 3 次网络失败会同时触发播放摘除（buildSourceChain 层过滤，先于熔断可见）——摘除语义见 T31
 
-  console.log('[T9] v14.0 失败原因结构化透出：聚合错误携带 code + detail 数组');
+  console.log('[T9] v3.0 失败原因结构化透出：聚合错误携带 code + detail 数组');
   resetMock();
   mockRoute = buildRoutes('netfail');
   const detailSong = { name: '结构化失败测试歌', singer: '未知', duration: 200000, songmid: 'detail-song-1' };
@@ -231,7 +231,7 @@ async function test(name, fn) {
   assert.ok(detailErr.detail.every(d => d.code === 'NETWORK_ERROR' || d.code === 'NETWORK_TIMEOUT' || d.code === 'RATE_LIMIT'),
     `netfail 全败 detail.code 应全为网络类码，实际=${detailErr.detail.map(d => d.code).join(',')}`);
 
-  console.log('[T10] v14.1 源健康权重自学习：健康评分排序（真实样本主导 + 探测低权重参考 + 连续失败惩罚）');
+  console.log('[T10] v3.0 源健康权重自学习：健康评分排序（真实样本主导 + 探测低权重参考 + 连续失败惩罚）');
   let mod = require(SRC);
   const fake = (id) => ({ id, name: id });
   // srcA：真实 10/10 全成功 快（应排第一）
@@ -257,7 +257,7 @@ async function test(name, fn) {
   assert.strictEqual(d.totalRequests, 0, '探测样本不应计入 totalRequests');
   assert.strictEqual(d.totalSuccess, 0, '探测样本不应计入 totalSuccess');
 
-  console.log('[T11] v14.2 竞速结果匹配校验：verified 源优先，未校验源不抢答');
+  console.log('[T11] v3.0 竞速结果匹配校验：verified 源优先，未校验源不抢答');
   // 重置 T8/T10 累计状态（熔断 + v26.1 播放摘除）：重新加载实例
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
@@ -293,7 +293,7 @@ async function test(name, fn) {
   assert.ok(fallbackUrl.url.includes('example.com/xh.flac'), `未校验候选应兜底返回，实际=${fallbackUrl.url}`);
   assert.ok(fallbackUrl.subSource, `兜底路径应透出子源: ${JSON.stringify(fallbackUrl)}`);
 
-  console.log('[T12] v14.3 探测巡检增强：分级轮次 + 失效源休眠复活');
+  console.log('[T12] v3.0 探测巡检增强：分级轮次 + 失效源休眠复活');
   // 12a：分级轮次判定——core 每轮，secondary 每3轮一探
   assert.strictEqual(mod.tierShouldProbe(1, 'core'), true, 'core 第1轮应探测');
   assert.strictEqual(mod.tierShouldProbe(2, 'secondary'), false, 'secondary 第2轮不应探测');
@@ -315,7 +315,7 @@ async function test(name, fn) {
   assert.ok(!mod.probeState.deadCount[sleepId], '探测通过应清失败累计');
   globalThis.__probeRound = oldRound;
 
-  console.log('[T13] v15.0 歌词/封面透出：wy lyric/pic + kw pic，不支持平台安全拒绝');
+  console.log('[T13] v3.0 歌词/封面透出：wy lyric/pic + kw pic，不支持平台安全拒绝');
   // 13a：wy 歌词（网易云公开接口，返回带时间标签歌词）
   resetMock();
   mockRoute = (u) => {
@@ -349,7 +349,7 @@ async function test(name, fn) {
   try { await requestHandler({ action: 'lyric', source: 'tx', info: { type: 'flac', musicInfo: wySong } }); } catch (e) { txRejected = true; }
   assert.ok(txRejected, 'tx 歌词无接口应 reject（App 走内置源兜底）');
 
-  console.log('[T14] v15.2 健康统计快照：全源全量 + 字段完整 + 健康分排序可用');
+  console.log('[T14] v3.0 健康统计快照：全源全量 + 字段完整 + 健康分排序可用');
   const snap = mod.getHealthSnapshot();
   assert.ok(snap && typeof snap === 'object', '应返回快照对象');
   assert.ok(Object.keys(snap).length >= 14, `应覆盖全部源，实际${Object.keys(snap).length}个`);
@@ -366,15 +366,15 @@ async function test(name, fn) {
     assert.ok(typeof s.reqCount === 'number' && typeof s.probeCount === 'number', `${id} 缺样本计数`);
   }
 
-  console.log('[T15] v16.3 健康 action：request(health) 返回快照对象（App fork 通道可用）');
+  console.log('[T15] v4.0 健康 action：request(health) 返回快照对象（App fork 通道可用）');
   const healthViaAction = await requestHandler({ action: 'health', source: 'wy', info: {} });
   assert.ok(healthViaAction && typeof healthViaAction === 'object', 'health action 应返回对象');
   assert.ok(Object.keys(healthViaAction).length >= 14, `health action 应覆盖全部源，实际${Object.keys(healthViaAction).length}个`);
   const firstHealth = healthViaAction[Object.keys(healthViaAction)[0]];
   assert.ok(firstHealth && typeof firstHealth.healthScore === 'number', 'health action 应含 healthScore');
-  assert.ok(typeof firstHealth.sleeping === 'boolean', 'v16.5 health action 应含 sleeping 休眠字段');
+  assert.ok(typeof firstHealth.sleeping === 'boolean', 'v4.0 health action 应含 sleeping 休眠字段');
 
-  console.log('[T16] v16.5 toggle/probe：源级开关(手动锁定)+手动探测 action（App fork 通道可用）');
+  console.log('[T16] v4.0 toggle/probe：源级开关(手动锁定)+手动探测 action（App fork 通道可用）');
   // 16a：toggle 关闭某源 → manualOff 锁定 → 快照 enabled=false
   const toggleOff = await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'kuwoOfficial', enabled: false } });
   assert.ok(toggleOff && toggleOff.id === 'kuwoOfficial' && toggleOff.enabled === false, `toggle 关闭失败: ${JSON.stringify(toggleOff)}`);
@@ -397,7 +397,7 @@ async function test(name, fn) {
   try { await requestHandler({ action: 'toggle', source: 'wy', info: { id: 'not_exist', enabled: false } }); } catch (e) { unknownRejected = true; }
   assert.ok(unknownRejected, 'toggle 未知源应 reject');
 
-  console.log('[T17] v17.0 失败归因分离：无版权404单独计数，不惩罚健康分/不计入成功率分母');
+  console.log('[T17] v4.0 失败归因分离：无版权404单独计数，不惩罚健康分/不计入成功率分母');
   resetMock();
   mockRoute = () => ({ statusCode: 404, body: '{"code":404,"msg":"no copyright"}' });
   let copyrightRejected = false;
@@ -417,7 +417,7 @@ async function test(name, fn) {
   for (const [id, s] of Object.entries(snapV17)) { if ((s.copyrightFail || 0) > 0 && s.state === 'open') { tripped = true; console.log('[debug] 版权失败却熔断的源:', id); } }
   assert.ok(!tripped, '版权失败不应触发熔断');
 
-  console.log('[T18] v17.1 按音质分档：成功/失败后快照含 byQuality，各档 rate 独立');
+  console.log('[T18] v4.0 按音质分档：成功/失败后快照含 byQuality，各档 rate 独立');
   resetMock();
   mockRoute = buildRoutes('success');
   await requestUrl('wy', 'flac', { name: '音质分档测试', singer: '测试', duration: 200000, songmid: '347230' });
@@ -436,7 +436,7 @@ async function test(name, fn) {
   assert.ok(totalReq > 0, '分档应有请求样本');
   assert.ok(anyRate1, '成功请求的档位成功率应为 1（成功样本正确归类）');
 
-  console.log('[T19] v17.2 429限流退避：不触发熔断、退避期内跳过(计数不增长)');
+  console.log('[T19] v4.0 429限流退避：不触发熔断、退避期内跳过(计数不增长)');
   resetMock();
   // 全部源持续 429：首次请求所有源各记 1 次限流并进入 30s 退避
   mockRoute = () => ({ statusCode: 429, headers: {}, body: '' });
@@ -457,7 +457,7 @@ async function test(name, fn) {
   for (const s of Object.values(snapV19b)) limitCountB += s.rateLimitCount || 0;
   assert.ok(limitCountB === limitCountA, `退避期内应跳过(计数不增长)：${limitCountA} → ${limitCountB}`);
 
-  console.log('[T20] v18.0 Juhe源族：kw 303重定向协议→直链，独立新源族注册');
+  console.log('[T20] v4.0 Juhe源族：kw 303重定向协议→直链，独立新源族注册');
   resetMock();
   // 解锁 juheKw（此前 T8 网络故障熔断遗留）——toggle 开启应重置熔断
   const unlockRes = await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'juheKw', enabled: true } });
@@ -486,7 +486,7 @@ async function test(name, fn) {
   assert.ok(snapV20.juheKw, '快照应含 juheKw 新源族');
   assert.ok(snapV20.juheKw.maxQuality === 'flac', 'juheKw 应支持 flac 音质');
 
-  console.log('[T21] v19.0 健康分排序源链：verified 源附加优先，串行兜底按健康分降序');
+  console.log('[T21] v4.0 健康分排序源链：verified 源附加优先，串行兜底按健康分降序');
   const fakeChain = [
     { id: 'v19fakeA', name: 'A', verified: false, maxQuality: 'flac' },
     { id: 'v19fakeB', name: 'B', verified: true, maxQuality: 'flac' },
@@ -496,13 +496,13 @@ async function test(name, fn) {
   assert.ok(sortedChain[0].id === 'v19fakeB', `verified 源应优先，实际 ${sortedChain[0].id}`);
   assert.ok(sortedChain.length === 3, '链长度不变');
 
-  console.log('[T22] v19.1 UA池轮换：多次获取应覆盖≥2种移动UA');
+  console.log('[T22] v4.0 UA池轮换：多次获取应覆盖≥2种移动UA');
   const uas = new Set();
   for (let i = 0; i < 8; i++) uas.add(mod.getMobileUserAgent());
   assert.ok(uas.size >= 2, `UA 池应轮换出至少2种，实际 ${uas.size} 种`);
   for (const ua of uas) assert.ok(/Mozilla\/5\.0/.test(ua), `UA 应合法: ${ua.slice(0, 30)}`);
 
-  console.log('[T23] v19.2 探测歌曲池扩充：12首轮换（防单曲被风控识别）');
+  console.log('[T23] v4.0 探测歌曲池扩充：12首轮换（防单曲被风控识别）');
   const probeSongs = new Set();
   for (let i = 0; i < 12; i++) {
     globalThis.__probeRound = i;
@@ -515,7 +515,7 @@ async function test(name, fn) {
   }
   assert.ok(probeSongs.size >= 10, `探测歌曲池应≥10首，实际 ${probeSongs.size} 首`);
 
-  console.log('[T24] v22.0 配置化：注入 breakerThreshold=1 后 1 次网络失败即熔断');
+  console.log('[T24] v5.0 配置化：注入 breakerThreshold=1 后 1 次网络失败即熔断');
   // 重载音源并注入配置（验证 USER_CONFIG 参数化生效）
   globalThis.__lxSourceConfig = { breakerThreshold: 1, cacheTtlMs: 9999 };
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
