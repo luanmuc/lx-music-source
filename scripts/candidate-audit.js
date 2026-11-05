@@ -166,6 +166,21 @@ function staticExtract(scriptCode) {
       if (!result.actions.includes(action)) result.actions.push(action);
     }
   }
+  // B5 修复：补 unshift 和展开运算符写法
+  const unshiftMatches = scriptCode.match(/actions\.unshift\(["'](\w+)["']/g);
+  if (unshiftMatches) {
+    for (const m of unshiftMatches) {
+      const action = m.match(/["'](\w+)["']/)[1];
+      if (!result.actions.includes(action)) result.actions.push(action);
+    }
+  }
+  const spreadMatches = scriptCode.match(/\[\.\.\.actions,\s*["'](\w+)["']\]/g);
+  if (spreadMatches) {
+    for (const m of spreadMatches) {
+      const action = m.match(/["'](\w+)["']/)[1];
+      if (!result.actions.includes(action)) result.actions.push(action);
+    }
+  }
 
   // 提取 API 域名（http/https URL）
   const urlMatches = scriptCode.match(/https?:\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
