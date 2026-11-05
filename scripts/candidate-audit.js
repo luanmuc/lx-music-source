@@ -15,7 +15,10 @@
  *   node scripts/candidate-audit.js <脚本URL> --json  # 仅输出 JSON
  *
  * 示例：
- *   node scripts/candidate-audit.js https://raw.githubusercontent.com/pdone/backend-api/master/fish.js
+ *   node scripts/candidate-audit.js https://raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
+ *
+ * ⚠️ 安全提示（R1）：本脚本用 `new Function` 执行任意远程脚本，仅审计信任来源的候选源。
+ *    恶意脚本可访问 Node 全局 process，请勿传入不信任的 URL。
  */
 'use strict';
 
@@ -24,11 +27,16 @@ const fs = require('fs');
 const path = require('path');
 
 // ---- 工具函数 ----
+const http = require('http');
+
 function fetchUrl(url, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
-    const req = https.get({
+    // B4 修复：按协议选择 http/https 模块
+    const client = u.protocol === 'http:' ? http : https;
+    const req = client.get({
       hostname: u.hostname,
+      port: u.port || (u.protocol === 'http:' ? 80 : 443),
       path: u.pathname + u.search,
       headers: { 'User-Agent': 'backend-api-candidate-audit' },
     }, (res) => {
@@ -134,10 +142,22 @@ function staticExtract(scriptCode) {
     result.platforms = [...new Set(platformMatches.map(s => s.replace(/["']/g, '')))];
   }
 
-  // 提取 actions（从源码里的 action === 或 actions.push）
+  // 提取 actions（从源码里的 action === 或 actions.push 或 switch-case）
   const actionMatches = scriptCode.match(/action\s*===?\s*["'](\w+)["']/g);
   if (actionMatches) {
     result.actions = [...new Set(actionMatches.map(s => s.match(/["'](\w+)["']/)[1]))];
+  }
+  // B3 修复：补 switch-case 写法（case "x":），但过滤掉平台名（kw/wy/tx/mg/kg）
+  const platformNames = new Set(['kw', 'wy', 'tx', 'mg', 'kg']);
+  const caseMatches = scriptCode.match(/case\s*["'](\w+)["']\s*:/g);
+  if (caseMatches) {
+    for (const m of caseMatches) {
+      const action = m.match(/["'](\w+)["']/)[1];
+      // 跳过平台名，只保留真正的 action 名
+      if (!platformNames.has(action) && !result.actions.includes(action)) {
+        result.actions.push(action);
+      }
+    }
   }
   const pushMatches = scriptCode.match(/actions\.push\(["'](\w+)["']/g);
   if (pushMatches) {
@@ -160,13 +180,9 @@ function staticExtract(scriptCode) {
   }
 
   // 检测鉴权（卡密/token/apikey 等关键词）
-  const authKeywords = ['token', 'apikey', 'api_key', '卡密', 'secret', 'auth'];
-  for (const kw of authKeywords) {
-    if (scriptCode.toLowerCase().includes(kw)) {
-      result.hasAuth = true;
-      break;
-    }
-  }
+  // B1 修复：用词边界正则，避免 @author 注释里的 "auth" 子串误命中
+  const authRegex = /\b(token|apikey|api_key|secret)\b|卡密/i;
+  result.hasAuth = authRegex.test(scriptCode);
 
   // 可读性评分
   const lineCount = result.lineCount;
@@ -223,8 +239,22 @@ function generateReport(scriptUrl, loadResult, staticResult) {
     for (const ev of loadResult.sentEvents) {
       report += `- **${ev.name}**\n`;
       if (ev.payload) {
-        report += `  - 平台：${ev.payload.platforms?.join(', ') || '未知'}\n`;
-        report += `  - actions：${ev.payload.actions?.join(', ') || '未知'}\n`;
+        // B2 修复：洛雪协议 inited 事件字段是 sources（对象），不是 platforms/actions
+        if (ev.payload.sources) {
+          const sourceIds = Object.keys(ev.payload.sources);
+          report += `  - 源数量：${sourceIds.length}\n`;
+          report += `  - 源列表：${sourceIds.join(', ')}\n`;
+          // 从 sources 里提取 actions 汇总
+          const allActions = new Set();
+          for (const src of Object.values(ev.payload.sources)) {
+            if (src.actions) src.actions.forEach(a => allActions.add(a));
+          }
+          if (allActions.size > 0) {
+            report += `  - 合计 actions：${[...allActions].join(', ')}\n`;
+          }
+        } else {
+          report += `  - 字段：${Object.keys(ev.payload).join(', ')}\n`;
+        }
       }
     }
     report += `\n`;
