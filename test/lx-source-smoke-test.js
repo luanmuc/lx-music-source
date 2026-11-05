@@ -774,7 +774,51 @@ async function test(name, fn) {
   const snap32 = modV32b.getHealthSnapshot();
   assert.ok(snap32.helloworldKw && typeof snap32.helloworldKw.successRate !== 'undefined', '健康快照应含 helloworldKw');
 
-  console.log('\n冒烟测试完成：32 组用例');
+  // ---------------- C1 专项补全（2026-11-05）：降级链 / 竞速回退 / 全链失败兜底 ----------------
+
+  console.log('[T33] 降级链专项：请求flac → flac/320k 级全失败 → 降档 128k 交付');
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('search.kuwo.cn')) return { statusCode: 200, headers: {}, body: "{'MP3RID':'MP3_123','NAME':'晴天','ARTIST':'周杰伦','DURATION':271}" }; // 酷我搜索
+    if (u.includes('antiserver.kuwo.cn')) return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'https://example.com/kw128.mp3' }; // 酷我转换（128k 兜底源）
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' }; // 可播探测
+    if (u.includes('yy.zddyr.top')) { // 星海：flac/320k 级失败，128k 级成功
+      if (u.includes('quality=flac') || u.includes('quality=320k')) return { statusCode: 404, headers: {}, body: '{}' };
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://example.com/xh128.mp3' }) };
+    }
+    return { error: 'ECONNREFUSED' }; // 其余源（oiapi 等）网络失败
+  };
+  const qRes = await requestUrl('kw', 'flac', { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228912' }).catch(e => e);
+  assert.ok(qRes && qRes.url && qRes.url.startsWith('https://example.com/'), `降级链应最终交付 URL: ${qRes && (qRes.url || qRes.message)}`);
+  assert.ok(qRes.type === '128k', `请求 flac 应降档交付 128k，实际 ${qRes.type}（降级链未生效）`);
+  assert.ok(qRes.subSource && typeof qRes.subSource === 'string', `降级成功后应透出实际子源: ${JSON.stringify(qRes)}`);
+
+  console.log('[T34] 竞速回退专项：健康首位源（星海）网络失败 → 后续源接管交付');
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('yy.zddyr.top')) return { error: 'ETIMEDOUT' }; // 星海（健康排序首位）挂
+    if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw.mp3' } }) }; // 溯音酷我成功
+    if (u.includes('search.kuwo.cn')) return { statusCode: 200, headers: {}, body: "{'MP3RID':'MP3_123','NAME':'晴天','ARTIST':'周杰伦','DURATION':271}" };
+    if (u.includes('antiserver.kuwo.cn')) return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'https://example.com/kw128.mp3' };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    return { error: 'ECONNREFUSED' };
+  };
+  const rRes = await requestUrl('kw', '128k', { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228913' }).catch(e => e);
+  assert.ok(rRes && rRes.url && rRes.url.startsWith('https://example.com/'), `竞速回退应交付 URL: ${rRes && (rRes.url || rRes.message)}`);
+  assert.ok(rRes.subSource && typeof rRes.subSource === 'string' && rRes.subSource !== 'xinghaiBackend', `应回退到非星海源交付，实际 ${rRes.subSource}（首位源挂后未回退）`);
+
+  console.log('[T35] 全链失败兜底：所有源 404 → 结构化错误 + 失败明细');
+  resetMock();
+  mockRoute = (u) => {
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    return { statusCode: 404, headers: {}, body: '{}' }; // 全部业务失败
+  };
+  const fRes = await requestUrl('kw', '128k', { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228914' }).catch(e => e);
+  assert.ok(fRes instanceof Error, `全链失败应抛错，实际 ${JSON.stringify(fRes)}`);
+  assert.ok(fRes.message && (fRes.message.includes('NOT_FOUND') || fRes.message.includes('FAIL')), `应返回结构化错误码，实际 ${fRes.message}`);
+  assert.ok(Array.isArray(fRes.detail) && fRes.detail.length > 0, `失败明细应存在，实际 ${JSON.stringify(fRes.detail)}`);
+
+  console.log('\n冒烟测试完成：35 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
