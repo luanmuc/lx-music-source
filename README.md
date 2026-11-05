@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.0 全量审计修复版**（`lx-source.js` 内 `@version 8.0`） |
+| 当前版本 | **v8.1**（v8.0 全量审计修复 + 候选实证半自动化工具；`lx-source.js` 内 `@version 8.0`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -32,7 +32,7 @@ https://raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 ```
 
-## 音源可用性（2026-11-04 核验）
+## 音源可用性（2026-11-05 核验）
 
 > 本表 = 本仓库实测基线 + 生态交叉验证；端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（`scripts/probe.js` 每日自动刷新）。
 > 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游域名可用但本机 IP 被封）。
@@ -40,12 +40,12 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|
 | 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ✅；music.163.com ✅；music-api.gdstudio.xyz ✅ |
-| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v12.0） | oiapi.net ✅；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ❌ HTTP 404 |
+| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v1.0） | oiapi.net ✅；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ❌ HTTP 404 |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ❌ 403 被封 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
-| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ✅ |
+| 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ❌ 超时不稳定 |
 
-> 详细对照表、缺陷与**后续规划**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
+> 详细对照表、缺陷与**后续规划（v7.0 系列新候选实证接入 / v8.0 健康日报 / v8.0 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
 ## 版本历史
 
 > 2026-11-05 版本重新整理：将原 53 个小版本（v11.11 ~ v29.9）按功能模块合并为 8 个大版本。
@@ -53,7 +53,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.0**（当前） | 全量审计修复 + 自动健康日报 + App 配合功能（趋势图/配置热更新/平台降级） |
+| **v8.1**（当前） | 候选实证半自动化：`scripts/candidate-audit.js` 输入候选 URL → 自动 mock 加载 + 静态提取 + 实证报告草案（2026-11-05） |
+| **v8.0** | 全量审计修复 + 自动健康日报 + App 配合功能（趋势图/配置热更新/平台降级） |
 | **v7.0** | 候选源生态：helloworld（kw 高音质竞速）实证接入，fish/hyw/qdy/jiexiang/lx 等候选逐层实证判否 + 自动摘死源（播放连续失败摘除）+ 健康分 10 分制 |
 | **v6.0** | 音质协商链 + 全链路审计 + 子源透出（播放页显示「平台·子源名」） |
 | **v5.0** | 配置化全参数 + 发布前自检门 |
