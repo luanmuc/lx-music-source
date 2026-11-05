@@ -44,9 +44,25 @@ function fetchUrl(url, timeoutMs = 15000) {
 }
 
 // ---- mock 宿主（复用冒烟测试框架）----
-function mockLoadScript(scriptCode, timeoutMs = 3000) {
+function mockLoadScript(scriptCode) {
   const sentEvents = [];
   let requestHandler = null;
+
+  // 保存原始定时器，加载完后恢复
+  const origSetInterval = global.setInterval;
+  const origSetTimeout = global.setTimeout;
+  const origClearInterval = global.clearInterval;
+  const origClearTimeout = global.clearTimeout;
+
+  // mock 定时器：全部变成空操作（防止健康探测 setInterval 导致进程不退出）
+  global.setInterval = () => 0;
+  global.setTimeout = (fn, ms) => {
+    // 只执行一次，不真正延迟
+    if (typeof fn === 'function') fn();
+    return 0;
+  };
+  global.clearInterval = () => {};
+  global.clearTimeout = () => {};
 
   // 注入 globalThis.lx（洛雪移动端宿主全局对象）
   globalThis.lx = {
@@ -60,8 +76,8 @@ function mockLoadScript(scriptCode, timeoutMs = 3000) {
       },
     },
     request(url, opts, cb) {
-      // mock 请求：直接返回空 200
-      setTimeout(() => cb(null, { statusCode: 200, headers: {}, body: '', url: String(url) }), 2);
+      // mock 请求：直接回调（因为 setTimeout 被覆盖了，会同步执行）
+      cb(null, { statusCode: 200, headers: {}, body: '', url: String(url) });
     },
     on(name, handler) { if (name === 'request') requestHandler = handler; },
     send(name, payload) { sentEvents.push({ name, payload }); },
@@ -76,17 +92,11 @@ function mockLoadScript(scriptCode, timeoutMs = 3000) {
     loadError = e.message;
   }
 
-  // 等待 timeoutMs，让 inited 事件和健康探测启动完
-  // （健康探测是异步的，我们不需要等它跑完，只要 inited 上报了就算加载成功）
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    // busy wait 等异步事件触发
-    // 注意：这里不能用 setTimeout，因为我们在同步代码里
-    // 实际上 inited 事件是同步上报的，所以不需要等
-    break;
-  }
-
-  // 清理全局对象
+  // 清理：恢复定时器 + 删除全局对象
+  global.setInterval = origSetInterval;
+  global.setTimeout = origSetTimeout;
+  global.clearInterval = origClearInterval;
+  global.clearTimeout = origClearTimeout;
   delete globalThis.lx;
 
   if (loadError) {
@@ -271,6 +281,9 @@ async function main() {
 
   const report = generateReport(scriptUrl, loadResult, staticResult);
   process.stdout.write(report);
+
+  // 强制退出（mock 加载可能启动了健康探测 setInterval，导致进程不退出）
+  process.exit(0);
 }
 
 main().catch((e) => {
