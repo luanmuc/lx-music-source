@@ -159,7 +159,9 @@ function extractEndpoints(src) {
   // 过滤明显非 API 的示例/文档 URL（v7.0 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
   // 加 `kuwo` 关键词——正则白名单化后 nmobi.kuwo.cn/mobi.s(helloworldKw 主通道 convert_url_with_sign)
   // 不含 api/music/search 等关键词会被误过滤，导致新源主通道脱离端点巡检）
-  return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${')
+  // v8.1：白名单补 `wwwweb`——ikun 源复活后主端点为 c.wwwweb.top（不含 api/music 等关键词会被误过滤，
+  // 与 nmobi.kuwo.cn 同类漏检问题）
+  return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|wwwweb|\.js$|\.php/i.test(u) && !u.includes('${')
     && !EXCLUDE_DOMAINS.some(d => u.includes(d)));
 }
 
