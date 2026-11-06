@@ -24,6 +24,14 @@ const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
 const HISTORY_DAYS = 7; // v4.0：近 7 日成功率窗口
 const CONCURRENCY = 5; // v8.0：并发池——同时最多 5 个请求，避免被风控封 IP
 const DEAD_STREAK_THRESHOLD = 3; // v4.0：连续失败天数阈值
+
+// v8.2：永久失效域名排除清单——这些端点域名已不可解析（服务方放弃），源本身默认关闭且需配置/卡密，
+// 探测只会产出永远红灯的噪音（2026-11-06 起 10 天零成功）。保留常量便于未来恢复，但不再进巡检。
+const EXCLUDE_DOMAINS = [
+  'music-dl.sayqz.com',   // 星海备份（xinghaiBackup:false）：域名不可解析，保留常量便于恢复
+  'api.lingchuan.com',    // 聆川（lingchuan:false，需配置）：域名不可解析，配置也救不回
+  'api.ikunshare.com',    // ikun 服务器源（ikun:false，需卡密）：域名不可解析，卡密也救不回
+];
 const UA_POOL = [ // v8.0：UA 池轮换，降低被风控概率
   'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -151,7 +159,8 @@ function extractEndpoints(src) {
   // 过滤明显非 API 的示例/文档 URL（v7.0 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
   // 加 `kuwo` 关键词——正则白名单化后 nmobi.kuwo.cn/mobi.s(helloworldKw 主通道 convert_url_with_sign)
   // 不含 api/music/search 等关键词会被误过滤，导致新源主通道脱离端点巡检）
-  return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${'));
+  return [...urls].filter(u => /api|music|search|antiserver|outer|kuwo|\.js$|\.php/i.test(u) && !u.includes('${')
+    && !EXCLUDE_DOMAINS.some(d => u.includes(d)));
 }
 
 // v8.0：并发池——限制同时最多 N 个请求，避免被上游风控
