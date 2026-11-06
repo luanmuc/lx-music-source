@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.1：ikun 源复活（c.wwwweb.top / POST /music/url / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.2：ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -256,6 +256,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.2** | ikun 探针接入 + POST 探测修复 | 音源 | `buildProbeConfig` 补 `ikun` 探针（POST `/music/url` 固定歌 kw 128k、code200+url 非空+Range 可播、tier=secondary）；修复 `probeSingleSource` 包装只透传 url/headers/check 漏 `method`/`body`——juhe 五源与 ikun 等 POST 协议型源实际发 GET（404/405 误判失败） | 开启后探针 POST 真实出链、健康分正常（实测 5.6）；关闭状态不探测不白探 | ✅ 已完成（2026-11-06） |
 | **v8.1** | ikun 源复活 | 音源 | 上游换域 `api.ikunshare.com`→`c.wwwweb.top`、接口 GET `/url`→POST `/music/url`（body `{source,musicId,quality}` + `X-Api-Key`，公益版留空）；url 输出 https 升级 | 端到端实测：mock 宿主 kw 128k 请求（其他源全失败）→ ikun 交付真链 206 audio/mpeg 可播；死域名 sayqz/lingchuan 归档 + probe 排除 | ✅ 已完成（2026-11-06） |
 
 ### 已判否的候选（2026-10-29 三层实证，不再投入）
