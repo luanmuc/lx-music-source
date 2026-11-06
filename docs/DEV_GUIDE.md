@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.1：ikun 源复活（c.wwwweb.top / POST /music/url / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -111,7 +111,8 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | suyinMigu | mg | — | ❌ 关闭 | **api.xcvts.cn = 可用** | 🔴 **关键分歧**：上游活着，本仓库 502 是 IP 封禁 → 值得测备用域名/换 IP |
 | xinghaiBackup | 多平台 | — | ❌ 关闭 | （zrcdy.dpdns.org 未单列；music-dl.sayqz.com 失效） | ✅ 维持关闭 |
 | huibq | 多平台 | — | ❌ 关闭 | lxmusicapi.onrender.com = 异常 | ✅ 维持关闭 |
-| lingchuan / ikun | 多平台 | — | ❌ 关闭 | api.lingchuan.com / api.ikunshare.com / gc.kxwa.top = 失效 | ✅ 需卡密/配置源，不做主力 |
+| lingchuan | 多平台 | — | ❌ 关闭 | api.lingchuan.com = DNS 失效（域名死，无公开替代） | ❌ 判否归档（2026-11-06 研究确认，probe 已排除监控） |
+| ikun | kw/wy | 128k/320k/flac 等 | ✅ **可用（公益免卡密）** | **c.wwwweb.top = 可用**（v8.1 域名迁移：api.ikunshare.com DNS 死 → c.wwwweb.top / POST /music/url；实测 rid=228908 真链 206 可播） | ✅ 已复活（默认关闭，开启即用；付费版可填卡密） |
 
 **交叉验证的三个规划含义**：
 1. **溯音咪咕（mg）有机会**：pdone 的 CI 显示 `api.xcvts.cn` 可用，本仓库 502 是 IP 维度封禁 → 当时（v3.0 时代）规划测"备用域名/代理"路线恢复 mg，v7.0 已实测判否（溯音咪咕 502 IP 封禁未解除，见七章）。
@@ -246,13 +247,16 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | v29.4 | 健康趋势图（原 v20.1） | 历史快照导出接口（时间序列） | 面板历史曲线 + 跨会话本地缓存 | 无 | 多会话曲线可见；重启历史保留 |
 
 ### ~~v9 系列（播放链路协同）~~ — ❌ 已全部放弃（2026-11-05 用户确认；完整设计归档见 docs/ARCHIVE_OLD_TAGS.md；**v9 编号已由下方跨仓库工程协同系列复用**）
-### v8.1 —（候选实证半自动化）候选实证半自动化（原 v10.3 前移并入，2026-11-05 用户确认不开 v9 系列）
+### v8.1 —（候选实证半自动化 + ikun 源复活）
+
+> 候选实证半自动化（原 v10.3 前移并入，2026-11-05 用户确认不开 v9 系列）；ikun 源复活（2026-11-06）。
 
 > 背景：生态扫描（v7.0）每周自动产出候选清单，但候选接入仍全人工。v8.1 把"实证报告草案"自动化（mock 加载 + 静态提取），L2 真实取链仍人工。
 
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.1** | ikun 源复活 | 音源 | 上游换域 `api.ikunshare.com`→`c.wwwweb.top`、接口 GET `/url`→POST `/music/url`（body `{source,musicId,quality}` + `X-Api-Key`，公益版留空）；url 输出 https 升级 | 端到端实测：mock 宿主 kw 128k 请求（其他源全失败）→ ikun 交付真链 206 audio/mpeg 可播；死域名 sayqz/lingchuan 归档 + probe 排除 | ✅ 已完成（2026-11-06） |
 
 ### 已判否的候选（2026-10-29 三层实证，不再投入）
 
