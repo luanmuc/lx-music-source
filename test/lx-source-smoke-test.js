@@ -1029,36 +1029,104 @@ async function test(name, fn) {
     console.log(`  ✅ 404 不短路 / 410 短路（降档交付 type=${r45.type}）`);
   }
 
-  // ===== T46：v8.10 分档预算 + 末档保底配置键存在 =====
-  console.log('[T46] v8.10 分档预算：配置键已注册（防高音质吃满总预算饿死低档）');
+  // ===== T46：v8.10 分档预算 + 末档保底（真行为验证）=====
+  console.log('[T46] v8.10 分档预算：高音质档吃满预算后，末档保底仍能真实取链并交付');
   {
-    // 通过 USER_CONFIG 全局对象验证配置键已写入（side-effect 脚本加载时写入 globalThis）
-    // 这里用间接方式：验证 getUrlWithFallback 函数存在且分档逻辑已生效
-    const mod46 = require(SRC);
-    assert.strictEqual(typeof mod46.getUrlWithFallback, 'function', 'getUrlWithFallback 应导出');
-    // 分档预算逻辑通过代码审查确认已写入（T43 的 raceBudgetFloorMs 配置已生效即可证明）
-    console.log(`  ✅ 分档预算逻辑已写入 getUrlWithFallback（末档保底 T43 已验证生效）`);
+    // 独立模块实例：总预算 1ms（进档即已耗尽）→ flac/320k 档零请求直接跳；末档 128k 有 3000ms 保底
+    // 期望：前两档"预算耗尽"跳过，128k 真实取链并交付。旧实现（无末档保底）会整次失败 → 本用例即防"点歌无声"
+    const saved46 = globalThis.__lxSourceConfig;
+    globalThis.__lxSourceConfig = { raceBudgetMs: 1, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100 };
+    delete require.cache[require.resolve(SRC)];
+    require(SRC);
+    resetMock();
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/t46.flac' } }) };
+      }
+      if (u.includes('zddyr.top')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://example.com/t46xh.flac' }) };
+      }
+      if (/kuwo\.cn|haitangw|163\.com|music\.163/.test(u)) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/t46misc.flac' }, url: 'https://example.com/t46misc.flac' }) };
+      }
+      return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    };
+    const t46 = Date.now();
+    const r46 = await requestUrl('kw', 'flac', { name: '末档保底测试', singer: '测试', duration: 200000, songmid: 'T46FLOOR' }).catch(e => e);
+    const el46 = Date.now() - t46;
+    assert.ok(!(r46 instanceof Error), `末档保底应交付成功，实际抛错 ${r46 && r46.message}`);
+    assert.strictEqual(r46.type, '128k', `前两档预算耗尽后应降档到 128k 交付，实际 ${r46 && r46.type}`);
+    assert.ok(el46 < 2000, `末档应只用保底预算，实际 ${el46}ms`);
+    console.log(`  ✅ flac/320k 耗尽后 128k 仍交付（type=${r46.type}，耗时 ${el46}ms）`);
+    if (saved46 === undefined) delete globalThis.__lxSourceConfig; else globalThis.__lxSourceConfig = saved46;
+    delete require.cache[require.resolve(SRC)];
+    require(SRC);
+    resetMock(); mockRoute = null;
   }
 
-  // ===== T47：v8.10 冷启动源豁免自动关闭 =====
-  console.log('[T47] v8.10 冷启动源豁免：huibq coldStart 标记存在（豁免自动关闭）');
+  // ===== T47：v8.10 冷启动源豁免自动关闭（真行为验证）=====
+  console.log('[T47] v8.10 冷启动豁免：coldStart 源连探 2 轮失败不摘，普通源仍自动关闭');
   {
     const mod47 = require(SRC);
-    // T42 已验证 SOURCE_HANDLERS.huibq.coldStart === true
-    // 这里验证 applyProbeResult 已实现冷启动豁免逻辑（通过代码审查）
-    assert.strictEqual(mod47.SOURCE_HANDLERS.huibq.coldStart, true, 'huibq 应带 coldStart 标记（T42 已测，这里复验）');
-    console.log(`  ✅ huibq coldStart=true，applyProbeResult 已实现豁免自动关闭逻辑`);
+    const savedHb = mod47.runtimeToggles.huibq;
+    const savedKw = mod47.runtimeToggles.suyinKuwo;
+    try {
+      // coldStart 源（huibq）：连续 2 次探测失败 → 应保留启用
+      mod47.applyProbeResult('huibq', false);
+      mod47.applyProbeResult('huibq', false);
+      const snap47 = mod47.getHealthSnapshot();
+      assert.strictEqual(snap47.huibq.enabled, true, `冷启动源连探失败后应保留启用，实际 enabled=${snap47.huibq.enabled}`);
+      console.log('  ✅ huibq（coldStart）连探 2 次失败后仍保持启用');
+
+      // 对照：非 coldStart 源（suyinKuwo）：连续 2 次失败 → 应自动关闭
+      mod47.applyProbeResult('suyinKuwo', false);
+      mod47.applyProbeResult('suyinKuwo', false);
+      const snap47b = mod47.getHealthSnapshot();
+      assert.strictEqual(snap47b.suyinKuwo.enabled, false, `普通源连探失败应自动关闭，实际 enabled=${snap47b.suyinKuwo.enabled}`);
+      console.log('  ✅ suyinKuwo（非 coldStart）连探 2 次失败后自动关闭（豁免只对冷启动源生效）');
+    } finally {
+      // 复原，避免污染后续用例（尤其 kw 链）
+      mod47.runtimeToggles.huibq = savedHb;
+      mod47.runtimeToggles.suyinKuwo = savedKw;
+      for (const id of ['huibq', 'suyinKuwo']) {
+        mod47.probeState.failCount[id] = 0;
+        delete mod47.probeState.deadCount[id];
+        delete mod47.probeState.sleeping[id];
+      }
+    }
   }
 
-  // ===== T48：v8.10 高音质缓存分级 TTL =====
-  console.log('[T48] v8.10 高音质缓存分级 TTL：配置键已注册（flac/320k 30min 防死链）');
+  // ===== T48：v8.10 高音质缓存分级 TTL（真行为验证）=====
+  console.log('[T48] v8.10 缓存分级 TTL：高音质过期后重播应重新取链且不报错');
   {
-    // 缓存分级 TTL 逻辑已写入 getCachedUrl/setCachedUrl（代码审查确认）
-    // 这里验证 cacheTtlHighQualityMs 配置键在 USER_CONFIG 中存在
-    // （side-effect 脚本加载时读入 globalThis.__lxSourceConfig，这里间接验证）
-    const mod48 = require(SRC);
-    assert.ok(mod48.SOURCE_HANDLERS, 'SOURCE_HANDLERS 应导出（缓存分级逻辑在内部）');
-    console.log(`  ✅ 高音质缓存分级 TTL 逻辑已写入 getCachedUrl/setCachedUrl（配置键已注册）`);
+    // 独立实例 + 高音质 TTL 1ms：同歌 flac 连播两次，第二次必过期 → 触发 getCachedUrl 的过期删除分支
+    // 该分支旧实现调用 successCache.delete()（LRU 无此方法）→ TypeError，本用例即防此崩溃
+    const saved48 = globalThis.__lxSourceConfig;
+    globalThis.__lxSourceConfig = { cacheTtlHighQualityMs: 1 };
+    delete require.cache[require.resolve(SRC)];
+    require(SRC);
+    resetMock();
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/t48.flac' } }) };
+      }
+      if (u.includes('zddyr.top')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://example.com/t48xh.flac' }) };
+      }
+      return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    };
+    const song48 = { name: '缓存过期测试', singer: '测试', duration: 200000, songmid: 'T48TTL' };
+    const r48a = await requestUrl('kw', 'flac', song48).catch(e => e);
+    assert.ok(!(r48a instanceof Error), `首次请求应成功，实际 ${r48a && r48a.message}`);
+    await new Promise(r => setTimeout(r, 30));
+    const r48b = await requestUrl('kw', 'flac', song48).catch(e => e);
+    assert.ok(!(r48b instanceof Error), `缓存过期后重播不应报错，实际 ${r48b && r48b.message}`);
+    assert.strictEqual(r48b.type, 'flac', `过期后应重新取链交付 flac，实际 ${r48b && r48b.type}`);
+    console.log('  ✅ 高音质缓存过期后重播正常（重新取链，无异常）');
+    if (saved48 === undefined) delete globalThis.__lxSourceConfig; else globalThis.__lxSourceConfig = saved48;
+    delete require.cache[require.resolve(SRC)];
+    require(SRC);
+    resetMock(); mockRoute = null;
   }
 
   console.log('\n冒烟测试完成：48 组用例');

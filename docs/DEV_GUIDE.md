@@ -63,6 +63,8 @@ on(request musicUrl)
 
 - 每 10 分钟一轮（首轮延迟 1 分钟）；**并发**探测全部源，一轮 ~6s；
 - 判定规则：连续 **2** 次通过才启用 / 连续 **2** 次失败才停用（防抖动）；`runtimeToggles` 覆盖静态开关，`buildSourceChain` 以运行时为准；
+- **v8.10 缓存分级 TTL**：`getCachedUrl` 按 entry 音质判过期——`flac`/`320k`/`flac24bit` 用 `cacheTtlHighQualityMs`(30min，链接有效期短)，其余用 `cacheTtlMs`(6h)；entry 存 `ts`，过期即 `delete` 后重新取链（v8.10.1 补 LRU `delete` 方法，缺此方法时高音质缓存过期重播会抛 TypeError）
+- **v8.10 历史快照扩容**：`HEALTH_HISTORY_MAX` 60→144（10min/条 ≈ 24h，趋势图跨天不断）
 - **v8.10 冷启动源豁免**：`coldStart: true` 的源（huibq onrender 冷态 30s）探针超时放宽到 30s（原 6s 必误判），且连续失败不自动关闭（冷态未唤醒不是真死，保留启用等真实播放验证）；
 - 单源多路探测（`probes`）：溯音酷我同时探测 flac(br=1) 与 128k(br=7)，**任一可播即存活**——防"flac 恢复但 128k 死链"时误摘高音质源；
 - 探测歌曲池轮换（12 首随机轮换，防单曲被风控导致误判；连续通过 ≥5 轮后降频为每 2 轮一探）；
