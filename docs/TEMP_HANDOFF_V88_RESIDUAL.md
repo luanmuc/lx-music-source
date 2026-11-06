@@ -60,6 +60,21 @@ node scripts/source-audit.js --only=kw   # 其余平台替换 --only=wy/tx/mg/kg
 - `docs/ITERATION_ROADMAP.md` 候选表里 `hyw` 仍标"进行中"，实际早已判否、现由 `scripts/recheck-candidates.js` 自动复检 → 改标"已判否（自动复检）"。
 - 本文件完成后删除。
 
+### 5.【低】巡检跑法约定（本次踩坑复盘，照做可省大量时间）
+
+本次跑 5 平台巡检时连续踩了三处，导致同一个收尾动作拖了很多轮：
+
+1. **脚本打印完"统计：x/y 可用"后进程不退**（事件循环被 HTTP keep-alive agent 挂住）。正确处理：一律用 `timeout` 包裹并一次跑完，输出完整即视为该平台完成，**不要用轮询 / sleep 等进程自然退出**。
+   ```bash
+   timeout 100 node scripts/source-audit.js --only=kw
+   ```
+2. **`pkill -f source-audit.js` 会连正在执行这条命令自身的 shell 一起杀掉**（pattern 匹配到自己的命令行，exit 143），本次因此让第一版交接文档的 heredoc 一个字都没写进去。清理残留要按 PID：
+   ```bash
+   pgrep -af "node scripts/source-audit"   # 先看
+   kill <pid>                              # 再按 PID 杀
+   ```
+3. **多个平台不要用 `for` 循环 + 后台 `&` 串起来跑**：前一个不退会拖住后一个，日志里只剩第一段。要么每个平台单独 `timeout` 跑，要么先修好遗留事项 2 再批量跑。
+
 ## 三、不要做的事
 
 - 不要把 `raceOverallTimeoutMs` / `RACE_OVERALL_TIMEOUT_MS` 再当主超时用：v8.8 起实际生效的是 `raceBudgetMs`（跨音质档共享 12s），旧键仅兼容保留。
