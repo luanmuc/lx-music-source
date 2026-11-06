@@ -32,7 +32,7 @@ AGENTS.md           # 本文件：协作规范
 # 语法检查（每次改动后必跑）
 node --check lx-source.js
 
-# 冒烟测试（固化在 test/，45 组用例）
+# 冒烟测试（固化在 test/，48 组用例）
 node test/lx-source-smoke-test.js
 
 # 发布自检（版本/actions/README/ROADMAP 三向同步，推送前必跑）

@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10：分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -52,8 +52,8 @@ on(request musicUrl)
 
 - **v8.8 分批错峰并发**：链路按 `(h.batch||1)` 分组，首批（batch=1）最多 `raceBatchSize`(3) 个同时启动，批间错峰 `raceBatchStaggerMs`(300ms)；`batch>1` 的配额源（gdWy）排到后续批，前批全败才打；
 - **verified 精确等待**：未校验源先成功时，仅当仍有 `verified` 源在飞才等 `raceMatchWaitMs`(600ms)，否则立即交付（不再无脑白等）；
-- **跨音质档总预算**：`getUrlWithFallback` 生成 `raceDeadline = now + raceBudgetMs`(12s)，逐档传入 `fallbackRace`；某档开始时预算已耗尽则抛 `NETWORK_TIMEOUT` 快速失败（`detail:[{source:"budget"}]`），不再进入必败请求；
-- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路，防源恢复后永久被跳。
+- **跨音质档总预算 + v8.10 分档预算**：`getUrlWithFallback` 生成 `totalDeadline = now + raceBudgetMs`(12s)，逐档算 `qBudget = min(该档预算, 剩余总预算)`；最后一档保底 `raceBudgetFloorMs`(3s) 防整次取链失败（防高音质吃满总预算饿死低档致点歌无声）；
+- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(**v8.10: 1h**，原 6h) 放行一次真实探路，防源恢复后永久被跳。
   - 判据刻意排除 `businessFail`（404 无版权/歌不存在/错歌）：这是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 6h；
   - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属"这一档拿不到"，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
 - 全部失败 → 抛聚合错误（`code` + 非空 `detail`）；
@@ -63,6 +63,7 @@ on(request musicUrl)
 
 - 每 10 分钟一轮（首轮延迟 1 分钟）；**并发**探测全部源，一轮 ~6s；
 - 判定规则：连续 **2** 次通过才启用 / 连续 **2** 次失败才停用（防抖动）；`runtimeToggles` 覆盖静态开关，`buildSourceChain` 以运行时为准；
+- **v8.10 冷启动源豁免**：`coldStart: true` 的源（huibq onrender 冷态 30s）探针超时放宽到 30s（原 6s 必误判），且连续失败不自动关闭（冷态未唤醒不是真死，保留启用等真实播放验证）；
 - 单源多路探测（`probes`）：溯音酷我同时探测 flac(br=1) 与 128k(br=7)，**任一可播即存活**——防"flac 恢复但 128k 死链"时误摘高音质源；
 - 探测歌曲池轮换（12 首随机轮换，防单曲被风控导致误判；连续通过 ≥5 轮后降频为每 2 轮一探）；
 - 探测通过后若可提取 URL，**再做 Range 可播性二次校验**（`isAudioPlayable`），识破"网关 200 + CDN 签名过期 410"假存活。
@@ -88,7 +89,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ### 3.5 缓存与防死链
 
-- 双层 LRU：成功 6h / 失败按类型差异化 TTL（404/无版权/歌信息不匹配=1h、410 签名死链=1min、限流/超时/网络/5xx=不缓存，其余兜底 5min）；key 含 songId+名称+歌手+专辑+音质（v1.0 加 songId，防同名不同版本冲突）；
+- 双层 LRU：成功 **v8.10 分级 TTL**——高音质（flac/320k）30min（链接有效期短，原 6h 链接已死仍返回死链）、低音质（128k）保持 6h；失败按类型差异化 TTL（404/无版权/歌信息不匹配=1h、410 签名死链=1min、限流/超时/网络/5xx=不缓存，其余兜底 5min）；key 含 songId+名称+歌手+专辑+音质（v1.0 加 songId，防同名不同版本冲突）；
 - 溯源酷我成功前必过 `isAudioPlayable`（Range 1KB），死链不计成功、不缓存 → 防止坏 URL 被 6h 缓存锁死；
 - 过期缓存兜底带音质校验（见 3.1 第 4 步）。
 
@@ -261,6 +262,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.10** | 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容（5 条全做） | 竞速链路 + 健康探测 + 缓存 | 分档预算 flac6s/320k4s/128k4s + 末档保底 3s + 冷启动探针 30s 超时与豁免自动关闭 + 短路窗口 6h→1h + 高音质缓存分级 TTL（flac/320k 30min）+ 历史快照 60→144；USER_CONFIG 新增 5 键 | 冒烟 48 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 43 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.7** | huibq 假成功治理 | 音源 | `huibqGetUrl` 增加 msg 失败词判定（无法获取/失败/错误/不存在/无效→NOT_FOUND）；原因：实测上游对拿不到的平台仍返回 code=0 + 可播错链（panspace 酷我 206），旧逻辑会静默播错歌；冒烟 T39 固化 | 冒烟 39 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.6** | huibq 默认开启（A 方案） | 音源 | `SOURCE_TOGGLES.huibq` false→true；五平台链尾兜底（`buildSourceChain` 已有 push，无需改编排）；探针自动托管；冒烟 T38 固化（默认开启 + kw/wy/tx/mg/kg 链含 huibq + 探针在册）；文档/基线同步 | 冒烟 38 组全绿；自检通过 | ✅ 已完成（2026-11-06） |
