@@ -32,7 +32,7 @@ AGENTS.md           # 本文件：协作规范
 # 语法检查（每次改动后必跑）
 node --check lx-source.js
 
-# 冒烟测试（固化在 test/，35 组用例）
+# 冒烟测试（固化在 test/，36 组用例）
 node test/lx-source-smoke-test.js
 
 # 发布自检（版本/actions/README/ROADMAP 三向同步，推送前必跑）
@@ -103,7 +103,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 ```bash
 git fetch origin && git log HEAD..origin/master --oneline  # 检查远端是否有其他账号新提交，有则先 pull --rebase
 node --check lx-source.js       # L0 语法
-node test/lx-source-smoke-test.js  # L1 冒烟 35 组
+node test/lx-source-smoke-test.js  # L1 冒烟 36 组
 node scripts/self-check.js      # 发布自检：@version 与 @description/logInfo/README/ROADMAP 同步，任一失败阻断发布
 ```
 

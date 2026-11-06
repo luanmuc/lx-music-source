@@ -596,6 +596,8 @@ async function test(name, fn) {
     return { error: 'ECONNREFUSED' };
   };
   mockRoute = slowRoute;
+  // v8.3：ikun 默认开启会进 kw 链尾兜底——本用例先关闭它，隔离"并发节流"断言（T36 单独验证默认开启）
+  await requestHandler({ action: 'toggle', info: { id: 'ikun', enabled: false } });
   const before27 = modV27.getHealthSnapshot();
   const results27 = await Promise.allSettled([
     requestUrl('kw', 'flac', { name: '并发测试曲A', singer: '测试', duration: 200000, songmid: 'CONC1' }),
@@ -818,7 +820,28 @@ async function test(name, fn) {
   assert.ok(fRes.message && (fRes.message.includes('NOT_FOUND') || fRes.message.includes('FAIL')), `应返回结构化错误码，实际 ${fRes.message}`);
   assert.ok(Array.isArray(fRes.detail) && fRes.detail.length > 0, `失败明细应存在，实际 ${JSON.stringify(fRes.detail)}`);
 
-  console.log('\n冒烟测试完成：35 组用例');
+  console.log('[T36] v8.3 ikun 默认开启：kw 链尾兜底 + 仅它可用时交付真链');
+  // 重载模块（默认状态：SOURCE_TOGGLES.ikun=true，无需 toggle）
+  if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
+  requestHandler = null;
+  const savedConsole36 = globalThis.console;
+  globalThis.console = undefined;
+  try { require(SRC); } finally { globalThis.console = savedConsole36; }
+  const modV36 = require(SRC);
+  resetMock();
+  const chainKw36 = (modV36.buildSourceChain ? modV36.buildSourceChain('kw', '128k').map(h => h.id) : []);
+  assert.ok(chainKw36.includes('ikun'), `kw 128k 链默认应含 ikun（默认开启），实际 ${chainKw36.join('>')}`);
+  // 只有 ikun 可用：其他源全失败，c.wwwweb.top 返回 code200 + 链（mock）
+  mockRoute = (u) => {
+    if (u.includes('c.wwwweb.top')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, message: '成功', quality: '128k', url: 'https://example.com/ikun.flac' }) };
+    if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    return { error: 'ECONNREFUSED' };
+  };
+  const ikunRes36 = await requestUrl('kw', '128k', { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908', hash: '228908' });
+  assert.ok(ikunRes36 && ikunRes36.subSource === 'ikun', `应由 ikun 交付（默认开启），实际 ${JSON.stringify(ikunRes36)}`);
+  assert.ok(ikunRes36.url.includes('example.com/ikun.flac'), `URL 应为 ikun 返回链，实际 ${ikunRes36.url}`);
+
+  console.log('\n冒烟测试完成：36 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
