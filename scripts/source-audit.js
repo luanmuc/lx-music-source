@@ -148,4 +148,6 @@ function rangeCheck(url) {
     realLog(`${r.src.padEnd(16)} | ${r.plat} | ${r.ok ? '✅' : '❌'} | ${String(r.code).padEnd(14)} | ${(r.ok ? (r.host || '') : r.msg).slice(0, 48).padEnd(48)} | ${String(r.playable || '').slice(0, 22)} | ${r.ms}ms`);
   }
   realLog(`\n统计：${rows.filter(r => r.ok).length}/${rows.length} 可用`);
+  // v8.9：巡检完成后强制退出——HTTP keep-alive agent 会挂住事件循环，不加 exit 进程常驻
+  process.exit(0);
 })();

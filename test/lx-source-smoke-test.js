@@ -855,12 +855,17 @@ async function test(name, fn) {
     modV36.runtimeToggles.huibq = huibqDefault; // 复原为默认状态（避免污染后续 T38）
   }
 
-  console.log('[T38] v8.6 huibq 默认开启：五平台链尾兜底 + 探针默认在册');
+  console.log('[T38] v8.6 huibq 默认开启：kw/wy 链尾兜底 + 探针默认在册（v8.9 收窄平台能力）');
   {
     assert.strictEqual(modV36.SOURCE_TOGGLES.huibq, true, `huibq 应默认开启（A 方案），实际 ${modV36.SOURCE_TOGGLES.huibq}`);
-    for (const plat of ['kw', 'wy', 'tx', 'mg', 'kg']) {
+    // v8.9：huibq 仅 kw/wy（tx/mg/kg 实测必败，不再白耗兜底）
+    for (const plat of ['kw', 'wy']) {
       const chain38 = modV36.buildSourceChain(plat, '128k');
-      assert.ok(chain38.some(h => h.id === 'huibq'), `${plat} 128k 链尾应含 huibq（全平台兜底），实际 ${chain38.map(h => h.id).join('→')}`);
+      assert.ok(chain38.some(h => h.id === 'huibq'), `${plat} 128k 链尾应含 huibq，实际 ${chain38.map(h => h.id).join('→')}`);
+    }
+    for (const plat of ['tx', 'mg', 'kg']) {
+      const chain38 = modV36.buildSourceChain(plat, '128k');
+      assert.ok(!chain38.some(h => h.id === 'huibq'), `${plat} 链不应含 huibq（v8.9 收窄），实际 ${chain38.map(h => h.id).join('→')}`);
     }
     const probeCfg38 = modV36.buildProbeConfig();
     assert.ok(probeCfg38.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg38.huibq.url)),
@@ -874,13 +879,17 @@ async function test(name, fn) {
       if (u.includes('lxmusicapi.onrender.com')) {
         return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, msg: '无法获取播放链接！', url: 'http://panspace.kuwo.cn/x.mp3' }) };
       }
-      return { error: 'ECONNREFUSED' }; // 其余源全网络错误 → tx 链仅 huibq 可应答
+      return { error: 'ECONNREFUSED' }; // 其余源全网络错误 → kw 链仅 huibq 可应答
     };
-    const r39 = await requestUrl('tx', '128k', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' }).catch(e => e);
+    const r39 = await requestUrl('kw', '128k', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' }).catch(e => e);
     assert.ok(!(r39 && r39.url && String(r39.url).includes('panspace')),
       `huibq msg 失败时不得交付 panspace 兜底链（错歌），实际 ${JSON.stringify(r39).slice(0, 160)}`);
     assert.ok(r39 instanceof Error || (r39 && !r39.url), `应整体失败而非交付错链，实际 ${JSON.stringify(r39).slice(0, 160)}`);
   }
+  // T39 改 kw 平台后全局状态（熔断/健康分）可能污染 T40，重新 require 模块复原
+  delete require.cache[require.resolve(SRC)];
+  require(SRC);
+  resetMock();
 
   console.log('[T40] v8.8 分批错峰并发接管：首批未 settle 时后批已并发启动，不再串行等满');
   {
@@ -968,7 +977,24 @@ async function test(name, fn) {
     resetMock();
   }
 
-  console.log('\n冒烟测试完成：43 组用例');
+  // T44：huibq 仅 kw/wy（v8.9：tx/mg/kg 必败兜底白耗 1~1.5s，实测 2026-11-06）
+  {
+    console.log('[T44] v8.9 huibq 平台能力收窄：仅 kw/wy 进链，tx/mg/kg 不含 huibq');
+    const mod = require(SRC);
+    const chainTx = mod.buildSourceChain('tx', '128k');
+    const chainMg = mod.buildSourceChain('mg', '128k');
+    const chainKg = mod.buildSourceChain('kg', '128k');
+    const chainKw = mod.buildSourceChain('kw', '128k');
+    const chainWy = mod.buildSourceChain('wy', '128k');
+    assert.ok(!chainTx.some(s => s.id === 'huibq'), `tx 链不应含 huibq，实际 ${chainTx.map(s=>s.id).join(',')}`);
+    assert.ok(!chainMg.some(s => s.id === 'huibq'), `mg 链不应含 huibq，实际 ${chainMg.map(s=>s.id).join(',')}`);
+    assert.ok(!chainKg.some(s => s.id === 'huibq'), `kg 链不应含 huibq，实际 ${chainKg.map(s=>s.id).join(',')}`);
+    assert.ok(chainKw.some(s => s.id === 'huibq'), `kw 链应含 huibq，实际 ${chainKw.map(s=>s.id).join(',')}`);
+    assert.ok(chainWy.some(s => s.id === 'huibq'), `wy 链应含 huibq，实际 ${chainWy.map(s=>s.id).join(',')}`);
+    console.log('  ✅ tx/mg/kg 链不含 huibq，kw/wy 链含 huibq');
+  }
+
+  console.log('\n冒烟测试完成：44 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

@@ -30,7 +30,7 @@ node scripts/source-audit.js --json     # 机器可读，供对比基线
 | kuwoOfficial 酷我官方 | ✅ | — | — | — | — | 自研搜索→convert_url |
 | changqingVip 长青 / nianxinVip 念心 | ✅ | — | — | — | — | kw 128k |
 | wyOuter 网易云官方 | — | ✅ | — | — | — | 本地 mock 不跟随 302 会假阴性；curl 跟随实测 206 可播 |
-| huibq | ✅ | ✅ | ✅ | ✅ | ✅ | **v8.6 起默认开启**（A 方案）；全平台全音质出链可播；onrender 免费实例冷启动慢，位于链尾（仅前面源全失败时打到） |
+| huibq | ✅ | ✅ | ❌ | ❌ | ❌ | **v8.6 起默认开启**（v8.9 收窄：仅 kw/wy 实测可用，tx/mg/kg 必败已移出链）；onrender 免费实例冷启动慢，位于链尾（仅前面源全失败时打到） |
 
 ### 不可用（14/35，均为上游问题，非本仓库可修）
 
@@ -75,7 +75,7 @@ huibq 存在**假成功**通路：对某平台拿不到链接时仍返回 `code:
 | kw 128k | suyinKuwo(v) → xinghaiBackend → helloworldKw → kuwoOfficial → changqingVip → nianxinVip → ikun → huibq | 8 |
 | wy flac | suyinKuwo(v) → gdWy → ikun | 3 |
 | wy 128k | suyinKuwo(v) → suyin163 → wyOuter → ikun → huibq | 5 |
-| tx/mg/kg 128k | suyinKuwo(v) → huibq | 2 |
+| tx/mg/kg 128k | suyinKuwo(v) | 1 |
 | tx/mg/kg flac | 仅 suyinKuwo 单源 | 1 |
 
 **关键修正**：全仓只有 2 个 `verified` 源（`suyinKuwo`、`suyinMigu`），而 `suyinKuwo` 排在每条链首位，所以"600ms 白等"在默认态并不发生；真实短板是串行兜底与必败档位空转。
