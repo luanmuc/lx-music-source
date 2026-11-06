@@ -1035,7 +1035,7 @@ async function test(name, fn) {
     // 独立模块实例：总预算 1ms（进档即已耗尽）→ flac/320k 档零请求直接跳；末档 128k 有 3000ms 保底
     // 期望：前两档"预算耗尽"跳过，128k 真实取链并交付。旧实现（无末档保底）会整次失败 → 本用例即防"点歌无声"
     const saved46 = globalThis.__lxSourceConfig;
-    globalThis.__lxSourceConfig = { raceBudgetMs: 1, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100 };
+    globalThis.__lxSourceConfig = { raceBudgetMs: 1, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100, maxConcurrency: 100, rateWindowMax: 100000 }; // v8.10.2：放宽限流——本用例只测末档保底，不该被前档在飞请求占位误伤
     delete require.cache[require.resolve(SRC)];
     require(SRC);
     resetMock();
@@ -1129,7 +1129,27 @@ async function test(name, fn) {
     resetMock(); mockRoute = null;
   }
 
-  console.log('\n冒烟测试完成：48 组用例');
+  console.log('[T49] v8.10.2 半开收口：业务失败不能让源卡在 half-open');
+  {
+    const mod49 = require(SRC);
+    const b49 = mod49.getBreaker('srcHalfOpen');
+    b49.state = 'half-open';
+    b49.lastFailureTime = Date.now() - 10 * 60 * 1000; // 冷却早已过期
+    mod49.recordBusinessFail('srcHalfOpen', '128k');
+    assert.strictEqual(b49.state, 'open',
+      `半开状态下业务失败应收口回 open（否则 canExecute 恒 false，源永久不被调用），实际=${b49.state}`);
+    assert.ok(Date.now() - b49.lastFailureTime < 5000,
+      'lastFailureTime 必须刷新为当前，否则冷却判定用旧时间戳会立刻再次放行');
+    assert.strictEqual(b49.copyrightFail, 1, '业务失败仍应计入 copyrightFail（统计口径不变）');
+    // 对照组：非半开源不受影响
+    const b49b = mod49.getBreaker('srcNormal');
+    b49b.state = 'closed';
+    mod49.recordBusinessFail('srcNormal', '128k');
+    assert.strictEqual(b49b.state, 'closed', 'closed 源遇到业务失败不应改变状态');
+    console.log('  ✅ 半开业务失败收口回 open 且刷新冷却；closed 源不受影响');
+  }
+
+  console.log('\n冒烟测试完成：49 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
