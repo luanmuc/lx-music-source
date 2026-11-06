@@ -843,7 +843,8 @@ async function test(name, fn) {
 
   console.log('[T37] v8.5 监控口径回归：suyinKuwo br=9 / xinghaiBackend 无 X-Token / huibq 探针');
   {
-    modV36.runtimeToggles.huibq = true; // 默认关闭源，临时开启以验证探针配置存在
+    const huibqDefault = modV36.SOURCE_TOGGLES.huibq; // v8.6：默认已开启，取默认值以便复原
+    modV36.runtimeToggles.huibq = true; // 临时确保开启以验证探针配置存在
     const probeCfg37 = modV36.buildProbeConfig();
     assert.ok(Array.isArray(probeCfg37.suyinKuwo?.probes) && JSON.stringify(probeCfg37.suyinKuwo.probes).includes('br=9'),
       `suyinKuwo 128k 探针应使用 br=9（唯一可播档），实际 ${JSON.stringify(probeCfg37.suyinKuwo?.probes || null).slice(0, 160)}`);
@@ -851,10 +852,22 @@ async function test(name, fn) {
       `xinghaiBackend 探针不应再发自定义 X-Token（无效 token 会被上游 403），实际 ${JSON.stringify(probeCfg37.xinghaiBackend?.headers || {})}`);
     assert.ok(probeCfg37.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg37.huibq.url)),
       `huibq 探针应存在且指向 huibq 端点，实际 ${JSON.stringify(probeCfg37.huibq || null).slice(0, 120)}`);
-    modV36.runtimeToggles.huibq = false;
+    modV36.runtimeToggles.huibq = huibqDefault; // 复原为默认状态（避免污染后续 T38）
   }
 
-  console.log('\n冒烟测试完成：37 组用例');
+  console.log('[T38] v8.6 huibq 默认开启：五平台链尾兜底 + 探针默认在册');
+  {
+    assert.strictEqual(modV36.SOURCE_TOGGLES.huibq, true, `huibq 应默认开启（A 方案），实际 ${modV36.SOURCE_TOGGLES.huibq}`);
+    for (const plat of ['kw', 'wy', 'tx', 'mg', 'kg']) {
+      const chain38 = modV36.buildSourceChain(plat, '128k');
+      assert.ok(chain38.some(h => h.id === 'huibq'), `${plat} 128k 链尾应含 huibq（全平台兜底），实际 ${chain38.map(h => h.id).join('→')}`);
+    }
+    const probeCfg38 = modV36.buildProbeConfig();
+    assert.ok(probeCfg38.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg38.huibq.url)),
+      `huibq 默认开启后探针应默认在册，实际 ${JSON.stringify(probeCfg38.huibq || null).slice(0, 100)}`);
+  }
+
+  console.log('\n冒烟测试完成：38 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
