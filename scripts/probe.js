@@ -30,7 +30,7 @@ const DEAD_STREAK_THRESHOLD = 3; // v4.0：连续失败天数阈值
 const EXCLUDE_DOMAINS = [
   'music-dl.sayqz.com',   // 星海备份（xinghaiBackup:false）：域名不可解析，保留常量便于恢复
   'api.lingchuan.com',    // 聆川（lingchuan:false，需配置）：域名不可解析，配置也救不回
-  'api.ikunshare.com',    // ikun 服务器源（ikun:false，需卡密）：域名不可解析，卡密也救不回
+  // v8.5：移除 api.ikunshare.com——ikun 已于 v8.1 复活（域名迁移 c.wwwweb.top、公益版免卡密）且 v8.3 默认开启，不再是死域名
 ];
 const UA_POOL = [ // v8.0：UA 池轮换，降低被风控概率
   'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
@@ -179,6 +179,125 @@ async function poolRun(tasks, concurrency) {
   return results;
 }
 
+// ---- v8.5：取链型端点二次校验（端点 200 ≠ 源可用）----
+// 2026-11-06 实锤假阳性：oiapi.net/api/Kuwo 端点连续 7 天 100% 可用，但源实际返回 CDN 410 死链；
+// yy.zddyr.top/lx/api/ 端点 200，但真实取链曾因无效 token 403。端点探活只能证明"服务活着"。
+// 故对"取链型"端点增加真实调用 + 直链 Range 可播校验，失败标记 PAYLOAD_DEAD。
+function payloadFetch(url, opt = {}) {
+  return new Promise(resolve => {
+    const visit = (u, depth) => {
+      let lib;
+      try { lib = new URL(u).protocol === 'https:' ? https : http; } catch (e) { return resolve({ statusCode: 0, body: '', headers: {} }); }
+      const req = lib.request(u, {
+        method: opt.method || 'GET',
+        headers: { 'User-Agent': UA_POOL[0], ...(opt.headers || {}) },
+        timeout: 5000,
+      }, res => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && depth < 4) {
+          res.resume();
+          let nxt;
+          try { nxt = new URL(res.headers.location, u).toString(); } catch (e) { return resolve({ statusCode: res.statusCode, body: '', headers: res.headers }); }
+          return visit(nxt, depth + 1);
+        }
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString('utf-8') }));
+      });
+      req.on('timeout', () => { req.destroy(); resolve({ statusCode: 0, body: '', headers: {} }); });
+      req.on('error', () => resolve({ statusCode: 0, body: '', headers: {} }));
+      if (opt.body) req.write(opt.body);
+      req.end();
+    };
+    try { visit(url, 0); } catch (e) { resolve({ statusCode: 0, body: '', headers: {} }); }
+  });
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function rangeOk(audioUrl) {
+  if (!audioUrl || !/^https?:\/\//.test(String(audioUrl))) return 'NO_URL';
+  const probe = async () => {
+    const r = await payloadFetch(String(audioUrl).replace(/^http:/, 'https:'), { headers: { Range: 'bytes=0-1023' } });
+    const ct = String((r.headers || {})['content-type'] || '');
+    const playable = r.statusCode === 206 || (r.statusCode === 200 && /audio|octet|mpeg|flac/i.test(ct));
+    return { playable, status: r.statusCode };
+  };
+  let r = await probe();
+  // v8.5：429/503 是上游 QPS 限流（尤其星海后端 kwplay 链），退避后重试一次；不算死链
+  if (!r.playable && (r.status === 429 || r.status === 503)) {
+    await sleep(1500);
+    r = await probe();
+    if (!r.playable && (r.status === 429 || r.status === 503)) return 'THROTTLED';
+  }
+  return r.playable ? 'PLAYABLE' : 'DEAD';
+}
+
+// 每个取链型端点的真实调用（返回直链，交由 rangeOk 判定可播）
+const PAYLOAD_CHECKS = [
+  {
+    key: 'oiapi.net/api/Kuwo',
+    getUrl: async () => {
+      const r = await payloadFetch('https://oiapi.net/api/Kuwo?msg=' + encodeURIComponent('晴天 周杰伦') + '&n=1&br=9');
+      try { const j = JSON.parse(r.body); if (j && j.data && j.data.url) return j.data.url; } catch (e) {}
+      const m = String(r.body).match(/音乐链接[：:]\s*(\S+)/);
+      return m ? m[1] : '';
+    },
+  },
+  {
+    key: 'oiapi.net/api/Music_163',
+    getUrl: async () => {
+      const r = await payloadFetch('https://oiapi.net/api/Music_163?id=347230');
+      try { const j = JSON.parse(r.body); const u = j && j.data && j.data[0] && j.data[0].url; if (u) return u; } catch (e) {}
+      const m = String(r.body).match(/音乐链接[：:]\s*(\S+)/);
+      return m ? m[1] : '';
+    },
+  },
+  {
+    key: 'c.wwwweb.top',
+    getUrl: async () => {
+      const r = await payloadFetch('https://c.wwwweb.top/music/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'kw', musicId: '228908', quality: '128k' }),
+      });
+      try { const j = JSON.parse(r.body); if (j && Number(j.code) === 200 && j.url) return j.url; } catch (e) {}
+      return '';
+    },
+  },
+  {
+    key: 'yy.zddyr.top/lx/api',
+    getUrl: async () => {
+      const r = await payloadFetch('https://yy.zddyr.top/lx/api/?source=kw&name=' + encodeURIComponent('晴天') + '&singer=' + encodeURIComponent('周杰伦') + '&songmid=228908&quality=128k', { headers: { 'X-Client': 'lx-aggregate/12.0', 'User-Agent': 'LX-Music-Mobile' } });
+      try { const j = JSON.parse(r.body); if (j && Number(j.code) === 200 && typeof j.url === 'string') return j.url; } catch (e) {}
+      return '';
+    },
+  },
+  {
+    key: 'api.xcvts.cn/api/music/migu',
+    getUrl: async () => {
+      const r = await payloadFetch('https://api.xcvts.cn/api/music/migu?gm=' + encodeURIComponent('晴天') + '&n=1&num=1&type=json');
+      try {
+        const j = JSON.parse(r.body);
+        if (j && j.musicInfo) return typeof j.musicInfo === 'string' ? j.musicInfo : (j.musicInfo.url || '');
+      } catch (e) {}
+      return '';
+    },
+  },
+];
+
+async function runPayloadCheck(endpointUrl) {
+  const c = PAYLOAD_CHECKS.find(x => endpointUrl.includes(x.key));
+  if (!c) return null;
+  try {
+    const url = await c.getUrl();
+    if (!url) return { ok: false, reason: 'PAYLOAD_NO_URL' };
+    const state = await rangeOk(url);
+    if (state === 'PLAYABLE') return { ok: true, reason: 'OK' };
+    if (state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED' }; // 限流非死链，不误判
+    return { ok: false, reason: 'PAYLOAD_DEAD' };
+  } catch (e) { return { ok: false, reason: 'PAYLOAD_ERR' }; }
+}
+
 // ---- 单端点探测（GET + Range 0-1023，4s 超时，失败重试 1 次）----
 function probeUrl(url, timeoutMs = 4000, retry = true) {
   return new Promise(resolve => {
@@ -218,7 +337,15 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   if (!endpoints.length) { console.error('未提取到端点'); process.exit(1); }
 
   // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
-  const results = await poolRun(endpoints.map(u => () => probeUrl(u)), CONCURRENCY);
+  // v8.5：端点探活 + 取链型端点二次校验（真实取链 + Range 可播）
+  const results = await poolRun(endpoints.map(u => async () => {
+    const base = await probeUrl(u);
+    if (!base.ok) return base;
+    const p = await runPayloadCheck(u);
+    if (!p) return base;
+    if (!p.ok) return { ...base, ok: false, reason: p.reason, payload: false };
+    return { ...base, payload: true };
+  }), CONCURRENCY);
   const okCount = results.filter(r => r.ok).length;
 
   if (asJson) {
@@ -254,6 +381,8 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   lines.push('# 端点健康表（自动巡检）');
   lines.push('');
   lines.push(`> 由 \`scripts/probe.js\` 自动生成 · 更新于 ${new Date().toISOString()} · 判定规则：2xx/3xx 或 Range 206 为可用（4xx/5xx/超时/域名不可解析为失败）`);
+  lines.push('>');
+  lines.push('> ⚠️ **口径**：本表是"端点级"健康（服务是否活着）。v8.5 起对取链型端点（oiapi Kuwo/163、ikun、星海后端、溯音咪咕）增加真实取链 + 直链 Range 可播二次校验，失败标 `PAYLOAD_*`；但"端点可用 ≠ 音源可用"的残余风险仍存在——源级最终判据以 **App 健康面板（源内探针，带 Range 校验）** 为准。');
   lines.push('');
   lines.push(`共提取 ${results.length} 个端点，可用 ${okCount} 个；近 ${HISTORY_DAYS} 日成功率基于 \`docs/probe-history.jsonl\` 历史（${today} 追加）。`);
   lines.push('');

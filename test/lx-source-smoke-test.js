@@ -841,7 +841,20 @@ async function test(name, fn) {
   assert.ok(ikunRes36 && ikunRes36.subSource === 'ikun', `应由 ikun 交付（默认开启），实际 ${JSON.stringify(ikunRes36)}`);
   assert.ok(ikunRes36.url.includes('example.com/ikun.flac'), `URL 应为 ikun 返回链，实际 ${ikunRes36.url}`);
 
-  console.log('\n冒烟测试完成：36 组用例');
+  console.log('[T37] v8.5 监控口径回归：suyinKuwo br=9 / xinghaiBackend 无 X-Token / huibq 探针');
+  {
+    modV36.runtimeToggles.huibq = true; // 默认关闭源，临时开启以验证探针配置存在
+    const probeCfg37 = modV36.buildProbeConfig();
+    assert.ok(Array.isArray(probeCfg37.suyinKuwo?.probes) && JSON.stringify(probeCfg37.suyinKuwo.probes).includes('br=9'),
+      `suyinKuwo 128k 探针应使用 br=9（唯一可播档），实际 ${JSON.stringify(probeCfg37.suyinKuwo?.probes || null).slice(0, 160)}`);
+    assert.ok(!(probeCfg37.xinghaiBackend?.headers && 'X-Token' in probeCfg37.xinghaiBackend.headers),
+      `xinghaiBackend 探针不应再发自定义 X-Token（无效 token 会被上游 403），实际 ${JSON.stringify(probeCfg37.xinghaiBackend?.headers || {})}`);
+    assert.ok(probeCfg37.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg37.huibq.url)),
+      `huibq 探针应存在且指向 huibq 端点，实际 ${JSON.stringify(probeCfg37.huibq || null).slice(0, 120)}`);
+    modV36.runtimeToggles.huibq = false;
+  }
+
+  console.log('\n冒烟测试完成：37 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
