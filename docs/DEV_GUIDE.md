@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10：分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.1：缓存 LRU delete 补修（P0）+ 用例真化 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
