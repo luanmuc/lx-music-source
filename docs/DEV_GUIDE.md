@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.6：huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -256,6 +256,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.7** | huibq 假成功治理 | 音源 | `huibqGetUrl` 增加 msg 失败词判定（无法获取/失败/错误/不存在/无效→NOT_FOUND）；原因：实测上游对拿不到的平台仍返回 code=0 + 可播错链（panspace 酷我 206），旧逻辑会静默播错歌；冒烟 T39 固化 | 冒烟 39 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.6** | huibq 默认开启（A 方案） | 音源 | `SOURCE_TOGGLES.huibq` false→true；五平台链尾兜底（`buildSourceChain` 已有 push，无需改编排）；探针自动托管；冒烟 T38 固化（默认开启 + kw/wy/tx/mg/kg 链含 huibq + 探针在册）；文档/基线同步 | 冒烟 38 组全绿；自检通过 | ✅ 已完成（2026-11-06） |
 | **v8.5** | 巡检工具与监控口径升级 | 工具+音源 | ①新增 `scripts/source-audit.js`（35 组逐源真实取链巡检，`--only=`/`--json`）②新增 `docs/SOURCE_AUDIT.md` 基线（21/35 状态表 + 不可修归档，巡检后对照更新）③`probe.js` 取链型端点二次校验（真实取链 + Range 可播；429/503 退避≈限流不判死；xcvts 假✅→真❌）④huibq 探针补齐 ⑤EXCLUDE_DOMAINS 移除 ikunshare | source-audit 可独立跑；probe 本地 11/15（xcvts 正确转失败）；冒烟 37 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.4** | 全源全接口深度巡检修复 | 音源 | 35 组逐源真实调用：①suyinKuwo 128k br=7→9（br=9 唯一可播，flac/320k VIP 死链；探针 128k 路同步）②xinghaiBackend 去自定义 X-Token 匿名适配（无效 token 上游 403"请使用官方版本"，匿名 200 受 QPS 限；fn+探针同步） | 可用 15→21/35；冒烟 36 组全绿；剩余失败均为上游死/受限（已默认关或归档） | ✅ 已完成（2026-11-06） |

@@ -867,7 +867,22 @@ async function test(name, fn) {
       `huibq 默认开启后探针应默认在册，实际 ${JSON.stringify(probeCfg38.huibq || null).slice(0, 100)}`);
   }
 
-  console.log('\n冒烟测试完成：38 组用例');
+  console.log('[T39] v8.7 huibq 假成功治理：msg「无法获取播放链接！」不得交付错链');
+  {
+    resetMock();
+    mockRoute = (u) => {
+      if (u.includes('lxmusicapi.onrender.com')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, msg: '无法获取播放链接！', url: 'http://panspace.kuwo.cn/x.mp3' }) };
+      }
+      return { error: 'ECONNREFUSED' }; // 其余源全网络错误 → tx 链仅 huibq 可应答
+    };
+    const r39 = await requestUrl('tx', '128k', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' }).catch(e => e);
+    assert.ok(!(r39 && r39.url && String(r39.url).includes('panspace')),
+      `huibq msg 失败时不得交付 panspace 兜底链（错歌），实际 ${JSON.stringify(r39).slice(0, 160)}`);
+    assert.ok(r39 instanceof Error || (r39 && !r39.url), `应整体失败而非交付错链，实际 ${JSON.stringify(r39).slice(0, 160)}`);
+  }
+
+  console.log('\n冒烟测试完成：39 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
