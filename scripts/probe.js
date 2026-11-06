@@ -342,6 +342,8 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   ).join('\n');
 
   // 替换 README.md 里的整段"音源可用性"表格（从标题到下一个 ## 之前）
+  // ⚠️ 模板内文案必须与 README 现状一致且不绑具体版本号——整段重写会覆盖该段内任何人工更新
+  //（v8.1 实测：模板旧文案「后续规划 v7.0 系列…」会把人工更新的「当前状态 v8.1 已交付」回退）
   const updatedReadme = readmeContent.replace(
     /## 音源可用性（\d{4}-\d{2}-\d{2} 核验）[\s\S]*?(?=\n## )/,
     `## 音源可用性（${todayStr} 核验）
@@ -353,7 +355,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
 |---|---|---|---|
 ${tableRows}
 
-> 详细对照表、缺陷与**后续规划（v7.0 系列新候选实证接入 / v8.0 健康日报 / v8.0 App 配合项）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
+> 详细对照表、缺陷与**各版本当前状态（以 docs/ITERATION_ROADMAP.md 与 DEV_GUIDE 为准）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
   );
 
   if (updatedReadme !== readmeContent) {
