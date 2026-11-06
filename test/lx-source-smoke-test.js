@@ -940,7 +940,35 @@ async function test(name, fn) {
     assert.ok(!primary42.some(h => h.id === 'gdWy'), `wy flac 首批不应含 gdWy（应排后批省配额），实际首批=${primary42.map(h => h.id).join(',')}`);
   }
 
-  console.log('\n冒烟测试完成：42 组用例');
+  console.log('[T43] v8.8 跨音质档总预算：源全慢时应到期快速失败，不被降档链拖到分钟级');
+  {
+    // 独立模块实例（预算 800ms）+ 全慢源（各 5s）
+    const saved43 = globalThis.__lxSourceConfig;
+    globalThis.__lxSourceConfig = { raceBudgetMs: 800, raceBatchStaggerMs: 150 };
+    delete require.cache[require.resolve(SRC)];
+    const mod43 = require(SRC);
+    resetMock();
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/slow43.flac' } }), delay: 5000 };
+      }
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: 'https://example.com/slow43-other.flac' }), delay: 5000 };
+    };
+    const t0 = Date.now();
+    const r43 = await requestUrl('kw', 'flac', { name: '预算测试曲', singer: '测试', duration: 200000, songmid: 'BUDGET1' }).catch(e => e);
+    const elapsed43 = Date.now() - t0;
+    assert.ok(r43 instanceof Error, `全慢源 + 800ms 预算应快速失败，实际 ${JSON.stringify(r43).slice(0, 120)}`);
+    assert.ok(/预算耗尽/.test(String(r43.message)), `应为预算耗尽错误，实际 ${r43.message}`);
+    assert.ok(elapsed43 < 2500, `应在预算附近失败（<2.5s），实际 ${elapsed43}ms（旧实现会逐档拖满）`);
+    console.log(`  T43 耗时 ${elapsed43}ms，错误=${r43.message.slice(0, 60)}`);
+    // 复原全局配置与模块实例，避免污染后续
+    if (saved43 === undefined) delete globalThis.__lxSourceConfig; else globalThis.__lxSourceConfig = saved43;
+    delete require.cache[require.resolve(SRC)];
+    require(SRC);
+    resetMock();
+  }
+
+  console.log('\n冒烟测试完成：43 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

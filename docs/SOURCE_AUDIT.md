@@ -89,4 +89,4 @@ huibq 存在**假成功**通路：对某平台拿不到链接时仍返回 `code:
 5. **gdWy 降后批**：`batch:2`，前批全败才打，省 5min/50 次配额。
 6. **verified 精确等待**：`verifiedPending` 计数，候选到手时仅当仍有 verified 源在飞才等 600ms，否则立即交付。
 
-回归：T27 调整为 1200ms 慢源（错峰后原 300ms 场景不再撞满并发上限），新增 T40（后批并发接管，实测 620ms 交付而非等首批 2000ms）、T41（档位短路：注入 flac 5 战 0 胜 → 不再请求 br=1）、T42（gdWy batch/huibq coldStart 标签 + wy flac 首批不含 gdWy）。冒烟 42 组全绿。
+回归：T27 调整为 1200ms 慢源（错峰后原 300ms 场景不再撞满并发上限），新增 T40（后批并发接管，实测 620ms 交付而非等首批 2000ms）、T41（档位短路：注入 flac 5 战 0 胜 → 不再请求 br=1）、T42（gdWy batch/huibq coldStart 标签 + wy flac 首批不含 gdWy）。冒烟 43 组全绿（含 T43：预算耗尽 800ms 快速失败）。

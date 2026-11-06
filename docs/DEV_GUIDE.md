@@ -24,7 +24,7 @@
 | ④ HTTP 封装 | 717~821 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
 | ⑤ 歌曲信息与匹配工具 | 823~986 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
 | ⑥ 音源实现 | 987~1645 | 20 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v7.0) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v4.0) / juheTx / juheWy / juheKg / juheMg(v4.0) / suyinMigu / changqingVip / nianxinVip |
-| ⑦ 注册表 + 调度 | 1646~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（前三源竞速 + 6s 整体超时 + 剩余串行）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
+| ⑦ 注册表 + 调度 | 1646~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（v8.8：全链分批错峰并发 + 跨档预算）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
 | ⑧ 上报 + 事件监听 | 2066~2183 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
 ## 三、核心机制详解
@@ -50,8 +50,11 @@ on(request musicUrl)
 
 ### 3.3 竞速回退（fallbackRace）
 
-- 前 3 源并发竞速（`raceFirst` 先胜先得；未校验源首个成功后等 600ms 给已验证源机会，防"快但错歌"抢答）；整体 6s 超时（`RACE_OVERALL_TIMEOUT_MS`）；
-- 竞速失败/超时 → 剩余源**串行**逐试；全部失败 → 抛聚合错误；
+- **v8.8 分批错峰并发**：链路按 `(h.batch||1)` 分组，首批（batch=1）最多 `raceBatchSize`(3) 个同时启动，批间错峰 `raceBatchStaggerMs`(300ms)；`batch>1` 的配额源（gdWy）排到后续批，前批全败才打；
+- **verified 精确等待**：未校验源先成功时，仅当仍有 `verified` 源在飞才等 `raceMatchWaitMs`(600ms)，否则立即交付（不再无脑白等）；
+- **跨音质档总预算**：`getUrlWithFallback` 生成 `raceDeadline = now + raceBudgetMs`(12s)，逐档传入 `fallbackRace`；某档开始时预算已耗尽则抛 `NETWORK_TIMEOUT` 快速失败（`detail:[{source:"budget"}]`），不再进入必败请求；
+- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail+businessFail) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路，防源恢复后永久被跳；
+- 全部失败 → 抛聚合错误（`code` + 非空 `detail`）；
 - `sortChainByHealth` 用断路器统计（成功率相差 >5% 按成功率排，否则按均时）把健康源放前，减少竞速打到死源的概率。
 
 ### 3.4 健康自愈（健康探测）
@@ -256,7 +259,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
-| **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 42 组全绿 | ✅ 已完成（2026-11-06） |
+| **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 43 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.7** | huibq 假成功治理 | 音源 | `huibqGetUrl` 增加 msg 失败词判定（无法获取/失败/错误/不存在/无效→NOT_FOUND）；原因：实测上游对拿不到的平台仍返回 code=0 + 可播错链（panspace 酷我 206），旧逻辑会静默播错歌；冒烟 T39 固化 | 冒烟 39 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.6** | huibq 默认开启（A 方案） | 音源 | `SOURCE_TOGGLES.huibq` false→true；五平台链尾兜底（`buildSourceChain` 已有 push，无需改编排）；探针自动托管；冒烟 T38 固化（默认开启 + kw/wy/tx/mg/kg 链含 huibq + 探针在册）；文档/基线同步 | 冒烟 38 组全绿；自检通过 | ✅ 已完成（2026-11-06） |
 | **v8.5** | 巡检工具与监控口径升级 | 工具+音源 | ①新增 `scripts/source-audit.js`（35 组逐源真实取链巡检，`--only=`/`--json`）②新增 `docs/SOURCE_AUDIT.md` 基线（21/35 状态表 + 不可修归档，巡检后对照更新）③`probe.js` 取链型端点二次校验（真实取链 + Range 可播；429/503 退避≈限流不判死；xcvts 假✅→真❌）④huibq 探针补齐 ⑤EXCLUDE_DOMAINS 移除 ikunshare | source-audit 可独立跑；probe 本地 11/15（xcvts 正确转失败）；冒烟 37 组全绿 | ✅ 已完成（2026-11-06） |

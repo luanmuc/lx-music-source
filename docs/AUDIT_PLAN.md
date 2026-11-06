@@ -32,7 +32,7 @@
 | A9 | 20 个子源端到端 | 参数校验→缓存→请求→校验→Range→缓存→返回 | ✅ | 抽查 gdWy/helloworldKw/juhe 三个典型源 |
 | A10 | 健康系统 | 探测/熔断/自愈/摘死/复活全链路 | ✅ | 11 个核心函数职责明确，v6.0 多轮审计修复 |
 | A11 | 缓存系统 | TTL/键策略/失败缓存差异化/过期兜底 | ✅ | 成功 6h + 失败按错误码差异化 TTL |
-| A12 | 降级链与竞速回退 | raceFirst/fallbackRace/6s超时/音质优先 | ✅ | 前三源竞速 + 剩余串行 + 过期兜底 |
+| A12 | 降级链与竞速回退 | raceFirst/fallbackRace/跨档预算/音质优先 | ✅ | v8.8：全链分批错峰并发 + 跨档 12s 总预算 + 档位短路 + verified 精确等待 + 过期兜底 |
 | A13 | 并发安全 | 多请求同时操作同一 sourceId Map 有无竞态；熔断状态切换原子性 | ✅ | JS 单线程同步操作；half-open 只放行一个试探请求；inflightCount finally 统一释放 |
 | A14 | 日志系统 | logDebug/logInfo/logWarn/logError 开关逻辑/输出去向/safeConsole 边界 | ✅ | safeConsole 三级兜底完善；LOG_DEBUG 可配置；LOG_ENABLED 已改可配置（__lxSourceConfig.logEnabled，缺省 true） |
 | A15 | URL 清洗与安全 | 返回 URL 是否清洗恶意参数/防注入/HTTPS 升级覆盖 | ✅ | validateUrl 格式校验 + upgradeToHttps 协议升级；无注入风险（播放器只发 HTTP 请求） |
