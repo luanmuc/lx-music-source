@@ -84,8 +84,15 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
     needs: test   # 测试通过才 purge，避免坏版本污染 CDN
     steps:
-      - name: purge jsDelivr CDN（lx-source.js）
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # 只要上一个 commit，够 diff 用
+      - name: purge jsDelivr CDN（仅 lx-source.js 变更时）
         run: |
-          curl -s "https://purge.jsdelivr.net/gh/luanmuc/backend-api@master/lx-source.js"
-          echo ""
-          echo "CDN 缓存已刷新"
+          # 只在 lx-source.js 真正变更时才 purge，改 CI 配置不刷新缓存
+          if git diff --name-only HEAD~1 HEAD | grep -q "^lx-source.js$"; then
+            curl -s "https://purge.jsdelivr.net/gh/luanmuc/backend-api@master/lx-source.js" || true
+            echo "✅ CDN 缓存已刷新"
+          else
+            echo "ℹ️ lx-source.js 无变更，跳过 CDN purge"
+          fi
