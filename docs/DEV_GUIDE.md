@@ -53,7 +53,9 @@ on(request musicUrl)
 - **v8.8 分批错峰并发**：链路按 `(h.batch||1)` 分组，首批（batch=1）最多 `raceBatchSize`(3) 个同时启动，批间错峰 `raceBatchStaggerMs`(300ms)；`batch>1` 的配额源（gdWy）排到后续批，前批全败才打；
 - **verified 精确等待**：未校验源先成功时，仅当仍有 `verified` 源在飞才等 `raceMatchWaitMs`(600ms)，否则立即交付（不再无脑白等）；
 - **跨音质档总预算**：`getUrlWithFallback` 生成 `raceDeadline = now + raceBudgetMs`(12s)，逐档传入 `fallbackRace`；某档开始时预算已耗尽则抛 `NETWORK_TIMEOUT` 快速失败（`detail:[{source:"budget"}]`），不再进入必败请求；
-- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail+businessFail) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路，防源恢复后永久被跳；
+- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路，防源恢复后永久被跳。
+  - 判据刻意排除 `businessFail`（404 无版权/歌不存在/错歌）：这是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 6h；
+  - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属"这一档拿不到"，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
 - 全部失败 → 抛聚合错误（`code` + 非空 `detail`）；
 - `sortChainByHealth` 用断路器统计（成功率相差 >5% 按成功率排，否则按均时）把健康源放前，减少竞速打到死源的概率。
 

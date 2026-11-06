@@ -148,6 +148,8 @@ function rangeCheck(url) {
     realLog(`${r.src.padEnd(16)} | ${r.plat} | ${r.ok ? '✅' : '❌'} | ${String(r.code).padEnd(14)} | ${(r.ok ? (r.host || '') : r.msg).slice(0, 48).padEnd(48)} | ${String(r.playable || '').slice(0, 22)} | ${r.ms}ms`);
   }
   realLog(`\n统计：${rows.filter(r => r.ok).length}/${rows.length} 可用`);
-  // v8.9：巡检完成后强制退出——HTTP keep-alive agent 会挂住事件循环，不加 exit 进程常驻
-  process.exit(0);
+  // v8.9：巡检完成后强制退出——HTTP keep-alive agent 会挂住事件循环，不加 exit 进程常驻。
+  // 退出码：默认 0（巡检是信息性输出，死源属常态）；`--strict` 时有任一源不可用则返回 1（供 CI 门禁用）
+  const strict = process.argv.includes('--strict');
+  process.exit(strict && rows.some(r => !r.ok) ? 1 : 0);
 })();

@@ -30,7 +30,7 @@ node scripts/source-audit.js --json     # 机器可读，供对比基线
 | kuwoOfficial 酷我官方 | ✅ | — | — | — | — | 自研搜索→convert_url |
 | changqingVip 长青 / nianxinVip 念心 | ✅ | — | — | — | — | kw 128k |
 | wyOuter 网易云官方 | — | ✅ | — | — | — | 本地 mock 不跟随 302 会假阴性；curl 跟随实测 206 可播 |
-| huibq | ✅ | ✅ | ❌ | ❌ | ❌ | **v8.6 起默认开启**（v8.9 收窄：仅 kw/wy 实测可用，tx/mg/kg 必败已移出链）；onrender 免费实例冷启动慢，位于链尾（仅前面源全失败时打到） |
+| huibq | ✅ | ✅ | ❌ | ❌ | ❌ | **v8.6 起默认开启**（v8.9 收窄：仅 kw/wy 实测可用，tx/mg/kg 必败已按 handler `platforms` 声明移出链）；onrender 免费实例冷启动慢，位于链尾（仅前面源全失败时打到） |
 
 ### 不可用（14/35，均为上游问题，非本仓库可修）
 

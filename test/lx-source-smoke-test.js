@@ -994,7 +994,42 @@ async function test(name, fn) {
     console.log('  ✅ tx/mg/kg 链不含 huibq，kw/wy 链含 huibq');
   }
 
-  console.log('\n冒烟测试完成：44 组用例');
+  console.log('[T45] v8.9 短路判据拆分：410 死链可短路，404 无版权不误伤');
+  {
+    const mod45 = require(SRC);
+    const hit45 = (u) => /br=1(?!\d)/.test(u); // flac 档 br=1
+    const mock45 = (urls) => (u) => {
+      urls.push(u);
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw45.flac' } }) };
+      }
+      if (u.includes('lxmusicapi.onrender.com')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, msg: 'success', url: 'https://example.com/hb45.mp3' }) };
+      }
+      return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    };
+    const song45 = { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' };
+
+    // 场景 A：只有 3 次 404（businessFail）→ 不短路，应真实尝试 flac(br=1)
+    resetMock();
+    const urlsA = []; mockRoute = mock45(urlsA);
+    mod45.getBreaker('suyinKuwo').byQuality.flac = { req: 3, success: 0, time: 0, fail: 0, businessFail: 3, linkExpired: 0 };
+    await requestUrl('tx', 'flac', song45).catch(() => {});
+    assert.ok(urlsA.some(hit45), `404 无版权不应触发档位短路（应真实请求 flac），实际请求=${urlsA.join(' | ').slice(0, 200)}`);
+
+    // 场景 B：3 次 410（linkExpired）→ 应短路，不再请求 flac(br=1)
+    // 注意：换 songmid，否则场景 A 的 successCache 会让本场景直接命中缓存而"假通过"
+    resetMock();
+    const urlsB = []; mockRoute = mock45(urlsB);
+    mod45.getBreaker('suyinKuwo').byQuality.flac = { req: 3, success: 0, time: 0, fail: 0, businessFail: 0, linkExpired: 3 };
+    const r45 = await requestUrl('tx', 'flac', { name: '晴天B', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5B' }).catch(e => e);
+    assert.ok(urlsB.length > 0, '场景 B 不应命中缓存（否则断言是假通过）');
+    assert.ok(!urlsB.some(hit45), `410 死链应触发档位短路（不应再请求 flac），实际请求=${urlsB.join(' | ').slice(0, 200)}`);
+    assert.ok(r45 && !(r45 instanceof Error), `短路后应降档交付，实际 ${JSON.stringify(r45).slice(0, 100)}`);
+    console.log(`  ✅ 404 不短路 / 410 短路（降档交付 type=${r45.type}）`);
+  }
+
+  console.log('\n冒烟测试完成：45 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
