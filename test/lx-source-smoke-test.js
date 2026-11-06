@@ -591,7 +591,7 @@ async function test(name, fn) {
   resetMock();
   mockRoute = buildRoutes('success');
   const slowRoute = (u) => {
-    if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw-slow.flac' } }), delay: 300 };
+    if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw-slow.flac' } }), delay: 1200 }; // v8.8：竞速分批错峰后，需更慢的源才能复现"3 并发撞满单源并发上限"场景
     if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '', delay: 1 };
     return { error: 'ECONNREFUSED' };
   };
@@ -882,7 +882,65 @@ async function test(name, fn) {
     assert.ok(r39 instanceof Error || (r39 && !r39.url), `应整体失败而非交付错链，实际 ${JSON.stringify(r39).slice(0, 160)}`);
   }
 
-  console.log('\n冒烟测试完成：39 组用例');
+  console.log('[T40] v8.8 分批错峰并发接管：首批未 settle 时后批已并发启动，不再串行等满');
+  {
+    resetMock();
+    const urls40 = [];
+    mockRoute = (u) => {
+      urls40.push(u);
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw-slow40.flac' } }), delay: 2000 };
+      }
+      if (u.includes('lxmusicapi.onrender.com')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, msg: 'success', url: 'https://example.com/huibq40.mp3' }), delay: 20 };
+      }
+      return { error: 'ECONNREFUSED' }; // 其余源立即失败 → 批2/批3 依次拉起，huibq 命中
+    };
+    const t0 = Date.now();
+    const r40 = await requestUrl('kw', '128k', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' }).catch(e => e);
+    const elapsed40 = Date.now() - t0;
+    assert.ok(r40 && r40.url && !(r40 instanceof Error), `后批源应交付，实际 ${JSON.stringify(r40).slice(0, 120)}`);
+    assert.strictEqual(r40.subSource, 'huibq', `应由批3的 huibq 交付（证明后批并发启动），实际=${r40.subSource}`);
+    assert.ok(elapsed40 < 1900, `不应等首批 suyinKuwo 的 2000ms 才返回（旧串行/旧竞速会等满），实际 ${elapsed40}ms`);
+    console.log(`  T40 耗时 ${elapsed40}ms，交付源 ${r40.subSource}（首批慢源 2000ms 未阻塞）`);
+  }
+
+  console.log('[T41] v8.8 档位短路：某源某档历史 0 成功且样本达标 → 该档直接跳过，不白试必败档');
+  {
+    resetMock();
+    const urls41 = [];
+    mockRoute = (u) => {
+      urls41.push(u);
+      if (u.includes('oiapi.net/api/Kuwo')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/kw41.flac' } }), delay: 5 };
+      }
+      if (u.includes('lxmusicapi.onrender.com')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 0, msg: 'success', url: 'https://example.com/hb41.mp3' }) };
+      }
+      return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' };
+    };
+    const mod41 = require(SRC);
+    // 注入画像：suyinKuwo 的 flac 档历史 5 次全失败、0 成功（真实场景：oiapi flac br=1 是 VIP 死链恒 410）
+    const b41 = mod41.getBreaker('suyinKuwo');
+    b41.byQuality.flac = { req: 5, success: 0, time: 0, fail: 5, businessFail: 0 };
+    const r41 = await requestUrl('tx', 'flac', { name: '晴天', singer: '周杰伦', duration: 269000, songmid: '004Z8Ihr0JIu5s' }).catch(e => e);
+    assert.ok(r41 && !(r41 instanceof Error), `短路后应降到可播档交付，实际 ${JSON.stringify(r41).slice(0, 120)}`);
+    assert.notStrictEqual(r41.type, 'flac', `应跳过 flac 档降档，实际 type=${r41.type}`);
+    assert.ok(['320k', '128k'].includes(r41.type), `应落在降档后的可播档，实际 type=${r41.type}`);
+    assert.ok(!urls41.some(u => /br=1(?!\d)/.test(u)), `flac(br=1) 死链档不应被实际请求（短路生效），实际请求 ${urls41.filter(u => u.includes('oiapi')).join(' | ')}`);
+  }
+
+  console.log('[T42] v8.8 源标签：gdWy 降到后批 + huibq 标记冷启动源');
+  {
+    const mod42 = require(SRC);
+    assert.strictEqual(mod42.SOURCE_HANDLERS.gdWy.batch, 2, `gdWy 应带 batch:2（配额源降后批），实际=${mod42.SOURCE_HANDLERS.gdWy.batch}`);
+    assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, `huibq 应带 coldStart:true（冷态预热+放宽超时），实际=${mod42.SOURCE_HANDLERS.huibq.coldStart}`);
+    const wyFlacChain = mod42.buildSourceChain('wy', 'flac');
+    const primary42 = wyFlacChain.filter(h => (h.batch || 1) === 1);
+    assert.ok(!primary42.some(h => h.id === 'gdWy'), `wy flac 首批不应含 gdWy（应排后批省配额），实际首批=${primary42.map(h => h.id).join(',')}`);
+  }
+
+  console.log('\n冒烟测试完成：42 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

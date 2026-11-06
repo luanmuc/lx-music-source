@@ -64,3 +64,29 @@ huibq 存在**假成功**通路：对某平台拿不到链接时仍返回 `code:
 ## 五、决策记录
 
 - **huibq 默认开启**（2026-11-06 用户拍板，v8.6）：全平台全音质实测可用，探针已补齐；收益 wy/tx/mg/kg 各多一个兜底源；风险（onrender 免费实例冷启动慢/限速）通过"链尾兜底"位置抵消——只有前面源全失败才打到。
+
+## v8.8 竞速引擎改造（2026-11-06）
+
+用户确认 6 条竞速优化全做。改造前实测的链结构事实（v8.7 默认态，健康分排序后）：
+
+| 平台·音质 | 实际链 | 长度 |
+|---|---|---|
+| kw flac | suyinKuwo(v) → xinghaiBackend → helloworldKw → ikun | 4 |
+| kw 128k | suyinKuwo(v) → xinghaiBackend → helloworldKw → kuwoOfficial → changqingVip → nianxinVip → ikun → huibq | 8 |
+| wy flac | suyinKuwo(v) → gdWy → ikun | 3 |
+| wy 128k | suyinKuwo(v) → suyin163 → wyOuter → ikun → huibq | 5 |
+| tx/mg/kg 128k | suyinKuwo(v) → huibq | 2 |
+| tx/mg/kg flac | 仅 suyinKuwo 单源 | 1 |
+
+**关键修正**：全仓只有 2 个 `verified` 源（`suyinKuwo`、`suyinMigu`），而 `suyinKuwo` 排在每条链首位，所以"600ms 白等"在默认态并不发生；真实短板是串行兜底与必败档位空转。
+
+六条落地：
+
+1. **全链分批错峰并发**：`raceFirst` 由"promise 数组 + 竞速3 + `for rest` 串行"改为 launcher 数组分批启动（批间 `raceBatchStaggerMs`=300ms），`fallbackRace` 全链转 launcher；kw 128k 最坏 31s → ≤10.5s。
+2. **跨音质档 12s 总预算**：`getUrlWithFallback` 生成 `raceDeadline` 传入每档 `fallbackRace`，耗尽即抛 `NETWORK_TIMEOUT`（附 `detail:[{source:"budget"}]`），防三级降档叠加。
+3. **档位短路**：`isQualityHopeless` 读 `getBreaker(id).byQuality[q]`，某档 success=0 且 (fail+businessFail)≥`qualityShortCircuitSamples`(3) 即跳过该源该档；整链短路则直接降档并写结构化 detail。**防死锁**：每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路。
+4. **冷启动源预热**：`huibq` 打 `coldStart` 标签，首次进链后台 fire-and-forget 预热（不阻塞/不计统计），单源超时放宽到 `coldStartTimeoutMs`(8s)——onrender 免费实例冷态 30s > 旧 5s 必败。
+5. **gdWy 降后批**：`batch:2`，前批全败才打，省 5min/50 次配额。
+6. **verified 精确等待**：`verifiedPending` 计数，候选到手时仅当仍有 verified 源在飞才等 600ms，否则立即交付。
+
+回归：T27 调整为 1200ms 慢源（错峰后原 300ms 场景不再撞满并发上限），新增 T40（后批并发接管，实测 620ms 交付而非等首批 2000ms）、T41（档位短路：注入 flac 5 战 0 胜 → 不再请求 br=1）、T42（gdWy batch/huibq coldStart 标签 + wy flac 首批不含 gdWy）。冒烟 42 组全绿。

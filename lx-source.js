@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.7 huibq假成功治理（2026-11-06：msg 失败词判失败，避免交付错歌）；v8.6 huibq默认开启（2026-11-06：全平台全音质可用，进五平台链尾兜底 + 探针托管）；v8.5 巡检工具与监控口径升级（2026-11-06：source-audit 巡检工具 + probe 假阳性治理 + huibq 探针）；v8.4 全源全接口深度巡检修复（2026-11-06：suyinKuwo br 修正 + xinghaiBackend 匿名适配，可用源 15→21）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密默认进 kw 链尾兜底，探测自动托管/失败自动关/恢复自动开）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针，用户手动开启后自动监控；POST /music/url 固定歌 + Range 可播校验）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 出真实128k链）；v8.0 全量审计修复版（版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md）；v29.9 全量审计修复（helloworld通道②补试听片段检测+reqTimestamps初始化防御+raceFirst空数组防御+注释修正+self-check补config/trend检查）；v29.8 小修复合集（logInfo版本号同步+清理冗余正则+@description同步）；v29.7 helloworld(kw)试听片段修复（降优先级移到Juhe之后 + URL关键词检测preview/test/sample抛错换源）；v29.6 巡检脚本全面优化(并发池限流+403/429判定修正+退出码分级+平台健康汇总+死源分级+原因标注+恢复标记+UA轮换+重试机制+README表格自动生成)；v29.5 深度交叉点审计修复(配置写模式返回current脱敏+PARAM_LIMITS上下限校验+改熔断阈值重置failureCount+改缓存TTL清空successCache+手动探测不存历史快照+deadCount含half-open+兜底平台按avgScore排序+历史快照上限20→60条+历史快照去冗余字段+breakers→breakerMap变量名修复)；v28 自动健康日报(scripts/health-daily.js：读probe-history按端点聚合近7日成功率/均时，连续3天全失败或真故障率>50%自动生成摘除建议，输出docs/health-daily/YYYY-MM-DD.md)；v27.4 健康分10分制输出；v27.3 全面审计修复(三源内部缓存命中返回裸URL——旧返回{url,type,subSource}包装对象被wrapExecute validateUrl拦截致缓存后跨平台取链秒失败；wy封面取songs[0].album.picUrl/blurPicUrl回退+补移动UA——网易detail实测带ids参数顶层picUrl恒null、封面在album字段；probe.js端点过滤正则悬空|恒真修复；ecosystem-scan.js源表改为从SOURCE_HANDLERS动态提取防漂移)；v27.2 候选 helloworld 实证接入(生态扫描候选——kw 128k/320k/flac 三档 convert_url_with_sign 直链全端到端实证通过(2026-10-29：mock宿主加载+真实flac/320k返回+Range 206+魔数校验)，与星海后端并列 kw 高音质竞速；haitangw v1 resolve-url 作通道②备用)；v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 8.7 huibq 假成功治理（2026-11-06：上游"无法获取播放链接！"仍返回 code=0 + 可播错链（实测 panspace 酷我 206）→ 按 msg 失败词判失败，避免静默播错歌）；v8.6 huibq 默认开启（2026-11-06：A 方案——全平台全音质实测可用，进 kw/wy/tx/mg/kg 链尾兜底 + 探针自动托管；v8.5 巡检工具与监控口径升级（2026-11-06：新增 scripts/source-audit.js 全源取链巡检工具 + docs/SOURCE_AUDIT.md 基线；probe.js 对取链型端点加真实取链+Range 可播二次校验（治理"端点✅但源410"假阳性，xcvts 由假✅转真❌）；huibq 探针补齐；真死域名排除清单更新）；v8.4 全源全接口深度巡检修复（2026-11-06：溯音酷我 128k br=7→9（实测唯一可播，flac/320k VIP 死链）；星海后端去自定义 X-Token 改匿名第三方调用（上游对无效 token 403"请使用官方版本"，匿名放行）；全源实测 15→21/35 可用）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密，默认进 kw 链尾兜底 + 每3轮探测自动托管；探测失败2次自动关、恢复自动开自愈闭环）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针——用户手动开启后自动监控健康；POST /music/url 固定歌 rid=228908 + code200/url非空 + Range可播二次校验，tier=secondary 每3轮一探避免公益版频控）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 晴天出真实128k链）；v8.0 全量审计修复版（2026-11-05 版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本，旧版本详细历史归档见 docs/ARCHIVE_OLD_TAGS.md）
+ * @description v8.8 竞速引擎改造（2026-11-06：6 条全做——①竞速执行器重写为全链分批错峰并发（消灭"竞速3+串行rest"，kw 最坏 31s→≤10.5s）②单次请求总预算 12s 跨音质档共享（防三级降档理论 90s+）③档位短路（某源某档历史 0 成功且样本≥3 直接跳过该档，6h 放行探路防死锁）④冷启动源预热 + 单源超时放宽到 8s（huibq onrender 冷态 30s > 旧 5s 必败）⑤gdWy 配额源 batch:2 降后批省配额⑥verified 等待精确化（无 verified 源在飞则立即交付，不再白等 600ms）；USER_CONFIG 新增 7 键，冒烟 T40/T41/T42）；v8.7 huibq假成功治理（2026-11-06：msg 失败词判失败，避免交付错歌）；v8.6 huibq默认开启（2026-11-06：全平台全音质可用，进五平台链尾兜底 + 探针托管）；v8.5 巡检工具与监控口径升级（2026-11-06：source-audit 巡检工具 + probe 假阳性治理 + huibq 探针）；v8.4 全源全接口深度巡检修复（2026-11-06：suyinKuwo br 修正 + xinghaiBackend 匿名适配，可用源 15→21）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密默认进 kw 链尾兜底，探测自动托管/失败自动关/恢复自动开）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针，用户手动开启后自动监控；POST /music/url 固定歌 + Range 可播校验）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 出真实128k链）；v8.0 全量审计修复版（版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md）；v29.9 全量审计修复（helloworld通道②补试听片段检测+reqTimestamps初始化防御+raceFirst空数组防御+注释修正+self-check补config/trend检查）；v29.8 小修复合集（logInfo版本号同步+清理冗余正则+@description同步）；v29.7 helloworld(kw)试听片段修复（降优先级移到Juhe之后 + URL关键词检测preview/test/sample抛错换源）；v29.6 巡检脚本全面优化(并发池限流+403/429判定修正+退出码分级+平台健康汇总+死源分级+原因标注+恢复标记+UA轮换+重试机制+README表格自动生成)；v29.5 深度交叉点审计修复(配置写模式返回current脱敏+PARAM_LIMITS上下限校验+改熔断阈值重置failureCount+改缓存TTL清空successCache+手动探测不存历史快照+deadCount含half-open+兜底平台按avgScore排序+历史快照上限20→60条+历史快照去冗余字段+breakers→breakerMap变量名修复)；v28 自动健康日报(scripts/health-daily.js：读probe-history按端点聚合近7日成功率/均时，连续3天全失败或真故障率>50%自动生成摘除建议，输出docs/health-daily/YYYY-MM-DD.md)；v27.4 健康分10分制输出；v27.3 全面审计修复(三源内部缓存命中返回裸URL——旧返回{url,type,subSource}包装对象被wrapExecute validateUrl拦截致缓存后跨平台取链秒失败；wy封面取songs[0].album.picUrl/blurPicUrl回退+补移动UA——网易detail实测带ids参数顶层picUrl恒null、封面在album字段；probe.js端点过滤正则悬空|恒真修复；ecosystem-scan.js源表改为从SOURCE_HANDLERS动态提取防漂移)；v27.2 候选 helloworld 实证接入(生态扫描候选——kw 128k/320k/flac 三档 convert_url_with_sign 直链全端到端实证通过(2026-10-29：mock宿主加载+真实flac/320k返回+Range 206+魔数校验)，与星海后端并列 kw 高音质竞速；haitangw v1 resolve-url 作通道②备用)；v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 8.8 竞速引擎改造（2026-11-06：全链分批错峰并发 + 跨档 12s 总预算 + 档位短路 + 冷启动预热 + gdWy 降批 + verified 精确等待；新增7配置键）；v8.7 huibq 假成功治理（2026-11-06：上游"无法获取播放链接！"仍返回 code=0 + 可播错链（实测 panspace 酷我 206）→ 按 msg 失败词判失败，避免静默播错歌）；v8.6 huibq 默认开启（2026-11-06：A 方案——全平台全音质实测可用，进 kw/wy/tx/mg/kg 链尾兜底 + 探针自动托管；v8.5 巡检工具与监控口径升级（2026-11-06：新增 scripts/source-audit.js 全源取链巡检工具 + docs/SOURCE_AUDIT.md 基线；probe.js 对取链型端点加真实取链+Range 可播二次校验（治理"端点✅但源410"假阳性，xcvts 由假✅转真❌）；huibq 探针补齐；真死域名排除清单更新）；v8.4 全源全接口深度巡检修复（2026-11-06：溯音酷我 128k br=7→9（实测唯一可播，flac/320k VIP 死链）；星海后端去自定义 X-Token 改匿名第三方调用（上游对无效 token 403"请使用官方版本"，匿名放行）；全源实测 15→21/35 可用）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密，默认进 kw 链尾兜底 + 每3轮探测自动托管；探测失败2次自动关、恢复自动开自愈闭环）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针——用户手动开启后自动监控健康；POST /music/url 固定歌 rid=228908 + code200/url非空 + Range可播二次校验，tier=secondary 每3轮一探避免公益版频控）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 晴天出真实128k链）；v8.0 全量审计修复版（2026-11-05 版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本，旧版本详细历史归档见 docs/ARCHIVE_OLD_TAGS.md）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -30,6 +30,15 @@ const USER_CONFIG = {
   raceOverallTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceOverallTimeoutMs) || 6000,  // 竞速整体超时
   raceMatchWaitMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs) || 600,         // verified 等待窗口
   allFailShortTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) || 30000,      // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
+  raceBudgetMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs) || 12000,          // v8.8：单次请求总预算(跨音质档共享)
+  raceBatchSize: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBatchSize) || 3,             // v8.8：每批并发源数
+  raceBatchStaggerMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBatchStaggerMs) || 300, // v8.8：批间错峰
+  coldStartTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs) || 8000, // v8.8：冷启动源单源超时
+  coldStartWarmTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs) || 300000, // v8.8：冷启动预热间隔
+  qualityShortCircuit: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.qualityShortCircuit : undefined, // v8.8：档位短路开关(缺省 true)
+  coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
+  qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
+  qualityShortCircuitProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs) || 21600000, // v8.8：短路放行探路间隔(6h)
   playDeadReviveMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs) || 300000        // v7.0：播放摘除后半开试探冷却期(5min)
 };
 // v5.0：运行参数读取（USER_CONFIG 缺失/空值时回退默认）
@@ -1413,7 +1422,7 @@ async function huibqGetUrl(platform, songId, quality, songInfo) {
   const res = await httpRequestWithRetry(url, {
     method: "GET",
     headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Request-Key": HUIBQ_REQUEST_KEY },
-    timeout: TIMEOUT_CONFIG.parse
+    timeout: cfg('coldStartTimeoutMs', 8000) // v8.8：冷启动源放宽单源超时（默认8s）
   });
   const body = res.body;
   if (!body || typeof body !== "object" || Number.isNaN(Number(body.code))) throw new Error(`${ERROR_CODES.SERVER_ERROR}: Huibq返回无效`);
@@ -1755,14 +1764,14 @@ function getHealthSnapshot() {
 // ============================================================
 // v1.0 P0-1：每个源标注 maxQuality 真实能力；buildSourceChain 按请求音质过滤，杜绝128k源冒充flac竞速
 const SOURCE_HANDLERS = {
-  gdWy: { id: "gdWy", name: "GD Studio(网易)", fn: gdWyGetUrl, maxQuality: "flac" },
+  gdWy: { id: "gdWy", name: "GD Studio(网易)", fn: gdWyGetUrl, maxQuality: "flac", batch: 2 }, // v8.8：配额源（5min/50次）降到后批，前批失败才打，省配额
   wyOuter: { id: "wyOuter", name: "网易云官方", fn: wyOuterGetUrl, maxQuality: "128k" },
   kuwoOfficial: { id: "kuwoOfficial", name: "酷我官方直连", fn: kuwoOfficialGetUrl, maxQuality: "128k" },
   helloworldKw: { id: "helloworldKw", name: "helloworld(kw)", fn: helloworldKwGetUrl, maxQuality: "flac" }, // v7.0：生态候选实证通过——kw 128k/320k/flac 三档直链(convert_url_with_sign + htw v1 双通道)
   ikun: { id: "ikun", name: "ikun", fn: ikunGetUrl, maxQuality: "flac" },
   xinghaiBackup: { id: "xinghaiBackup", name: "星海备", fn: xinghaiBackupGetUrl, maxQuality: "128k" },
   xinghaiBackend: { id: "xinghaiBackend", name: "星海后端", fn: xinghaiBackendGetUrl, maxQuality: "flac" },
-  huibq: { id: "huibq", name: "Huibq", fn: huibqGetUrl, maxQuality: "320k" },
+  huibq: { id: "huibq", name: "Huibq", fn: huibqGetUrl, maxQuality: "320k", coldStart: true }, // v8.8：冷启动源（onrender 免费实例，预热 + 放宽超时）
   lingchuan: { id: "lingchuan", name: "聆川", fn: lingchuanGetUrl, maxQuality: "320k" },
   suyinQQ: { id: "suyinQQ", name: "溯音QQ", fn: (platform, songId, quality, songInfo) => suyinGetUrl("tx", songId, quality, songInfo), maxQuality: "flac" },
   suyin163: { id: "suyin163", name: "溯音163", fn: (platform, songId, quality, songInfo) => suyinGetUrl("wy", songId, quality, songInfo), maxQuality: "128k" },
@@ -1849,58 +1858,94 @@ function sortChainByHealth(chain) {
   });
 }
 
-function raceFirst(promises) {
-  // v8.0：空数组防御——直接 reject，避免永远 pending
-  if (!promises || promises.length === 0) {
+// v8.8：竞速执行器重写
+// ① 分批错峰并发：批1 启动后 staggerMs 内未成功即启动批2（不再"竞速3个+串行rest"）
+// ② 全局预算：deadline 由 getUrlWithFallback 跨音质档共享
+// ③ verified 精确等待：仅当批次里还有"未 settle 的 verified 源"才给匹配等待；否则立即交付
+function raceFirst(launchers, opts = {}) {
+  const batchSize = Math.max(1, Number(opts.batchSize || cfg('raceBatchSize', 3)));
+  const staggerMs = Math.max(0, Number(opts.staggerMs !== undefined ? opts.staggerMs : cfg('raceBatchStaggerMs', 300)));
+  const matchWaitMs = Math.max(0, Number(opts.matchWaitMs !== undefined ? opts.matchWaitMs : cfg('raceMatchWaitMs', 600)));
+  const deadline = Number(opts.deadline || (Date.now() + cfg('raceBudgetMs', 12000)));
+  if (!launchers || launchers.length === 0) {
     return Promise.reject(new Error(`${ERROR_CODES.NOT_FOUND}: 无可竞速的音源`));
   }
-  // v3.0：校验感知竞速——resolve 值带 {verified, url}；verified 源(内部 songInfoMatch 校验)结果优先返回；
-  // 未校验源首个成功仅作候选，等 RACE_MATCH_WAIT_MS 窗口内是否有 verified 源成功（错歌校验更可信），超时后返回候选
   return new Promise((resolve, reject) => {
-    let remaining = promises.length;
-    const errs = [];
-    let candidate = null;
     let settled = false;
+    let started = 0;
+    let pending = 0;
+    let verifiedPending = 0;
+    let candidate = null;
     let waiter = null;
+    let budgetTimer = null;
+    const errs = [];
+    const total = launchers.length;
     const settle = (val) => {
       if (settled) return;
       settled = true;
       if (waiter) { clearTimeout(waiter); waiter = null; }
+      if (budgetTimer) { clearTimeout(budgetTimer); budgetTimer = null; }
       resolve(val);
     };
-    for (const p of promises) {
-      Promise.resolve(p).then(
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      if (waiter) { clearTimeout(waiter); waiter = null; }
+      if (budgetTimer) { clearTimeout(budgetTimer); budgetTimer = null; }
+      reject(err);
+    };
+    const startOne = (i) => {
+      const item = launchers[i];
+      const h = (item && item.handler) || null;
+      const run = typeof item === "function" ? item : (item && item.run);
+      const isVerified = !!(h && h.verified);
+      started += 1;
+      pending += 1;
+      if (isVerified) verifiedPending += 1;
+      Promise.resolve().then(run).then(
         (res) => {
+          pending -= 1;
+          if (isVerified) verifiedPending -= 1;
           if (settled) return;
-          const item = (res && typeof res === "object" && res.url) ? res : { verified: false, url: res };
-          // v7.0：竞速候选成功打点（可观测：哪个源在竞速中交付）
-          logDebug(`[竞速] 候选成功: 源=${item.source || "未知"} verified=${!!item.verified}`);
-          // v6.0：防御——裸 url 值（无 source）兜底空串，避免未来调用路径丢失子源透出
-          if (item.verified) return settle({ url: item.url, source: item.source || "" });
+          const url = (res && typeof res === "object" && res.url) ? res.url : res;
+          const source = (res && typeof res === "object" && res.source) ? res.source : ((h && h.id) || "");
+          logDebug(`[竞速] 候选成功: 源=${source || "未知"} verified=${isVerified}`);
+          if (isVerified) return settle({ url, source: source || "" });
           if (!candidate) {
-            candidate = item;
-            const deadline = Date.now() + cfg('raceMatchWaitMs', RACE_MATCH_WAIT_MS);
-            // v6.0：洛雪移动端 VM 沙箱无 setInterval（实测 UnhandledPromiseRejection: 'setInterval' is not defined）
-            // 用一次性 setTimeout 等价实现候选取回（settle 只发生一次，无需轮询）
-            waiter = setTimeout(() => {
-              waiter = null;
-              if (!settled && Date.now() >= deadline) settle({ url: candidate.url, source: candidate.source || "" });
-            }, cfg('raceMatchWaitMs', RACE_MATCH_WAIT_MS));
+            candidate = { url, source: source || "" };
+            if (verifiedPending > 0 && matchWaitMs > 0) {
+              waiter = setTimeout(() => { waiter = null; if (!settled && candidate) settle(candidate); }, matchWaitMs);
+            } else {
+              settle(candidate);
+            }
           }
         },
         (e) => {
+          pending -= 1;
+          if (isVerified) verifiedPending -= 1;
           errs.push(e);
-          if (--remaining === 0) {
-            if (settled) return;
-            settled = true;
-            if (waiter) { clearTimeout(waiter); waiter = null; }
-            // v7.0：竞速全败打点（含失败原因，一次定位）
-            logDebug(`[竞速] 候选全败: ${errs.length} 个: ${errs.map(e => String((e && e.message) || "")).join(" | ")}`);
-            reject({ allFailed: true, errors: errs });
+          if (settled) return;
+          if (candidate && verifiedPending === 0) return settle(candidate);
+          if (pending === 0 && started >= total) {
+            logDebug(`[竞速] 候选全败: ${errs.length} 个: ${errs.map(x => String((x && x.message) || "")).join(" | ")}`);
+            return fail({ allFailed: true, errors: errs });
           }
         }
       );
-    }
+    };
+    const launchBatch = () => {
+      if (settled) return;
+      const endIdx = Math.min(started + batchSize, total);
+      while (started < endIdx) startOne(started);
+      if (started < total) setTimeout(launchBatch, staggerMs);
+    };
+    launchBatch();
+    budgetTimer = setTimeout(() => {
+      budgetTimer = null;
+      if (settled) return;
+      if (candidate) return settle(candidate);
+      fail(new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: 竞速预算耗尽(${cfg('raceBudgetMs', 12000)}ms)`));
+    }, Math.max(deadline - Date.now(), 0));
   });
 }
 
@@ -1985,7 +2030,13 @@ async function wrapExecute(handler, platform, songInfo, quality) {
 }
 
 // v1.0 P0-5：fallbackRace 加 6s 整体超时；超时后继续 rest 串行
-async function fallbackRace(chain, platform, songInfo, quality) {
+async function fallbackRace(chain, platform, songInfo, quality, deadline) {
+  // v8.8：预算耗尽快速失败（跨音质档共享）
+  if (deadline && Date.now() >= deadline) {
+    const budgetErr = new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: 竞速预算耗尽(${cfg('raceBudgetMs', 12000)}ms)，跳过本档`);
+    budgetErr.detail = [{ source: "budget", quality, code: ERROR_CODES.NETWORK_TIMEOUT, reason: "预算耗尽" }];
+    throw budgetErr;
+  }
   // v3.0：失败原因结构化——detail 数组每项 {source, quality, code, reason}，供 App 端展示/统计
   const collectDetails = [];
   if (chain.length === 1) {
@@ -2002,8 +2053,14 @@ async function fallbackRace(chain, platform, songInfo, quality) {
       throw aggErr;
     }
   }
-  const firstBatch = chain.slice(0, 3);
-  const rest = chain.slice(3);
+  // v8.8：全链分批并发（不再"竞速3 + 串行 rest"）；batch 标签>1 的源（gdWy 配额源）排后批
+  const primary = chain.filter(h => (h.batch || 1) === 1);
+  const secondary = chain.filter(h => (h.batch || 1) > 1);
+  const launchers = [...primary, ...secondary].map(h => ({
+    handler: h,
+    run: () => wrapExecute(h, platform, songInfo, quality).then(url => ({ url, source: h.id })),
+  }));
+  const batchSize = Math.min(cfg('raceBatchSize', 3), Math.max(primary.length, 1));
   const errors = [];
   const details = collectDetails;
   // v1.0：聚合错误携带"代表性"失败码——业务失败码优先(NOT_FOUND/MISMATCH/LINK_EXPIRED，稳定结论)，
@@ -2019,31 +2076,16 @@ async function fallbackRace(chain, platform, songInfo, quality) {
     details.push({ source: handlerId, quality: q, code, reason: String((err && err.message) || "") });
     errors.push(err.message);
   };
-  let timeoutHandle;
-  const overallTimeout = new Promise((_, rej) => {
-    timeoutHandle = setTimeout(() => rej(new Error(`RACE_TIMEOUT:${cfg('raceOverallTimeoutMs', RACE_OVERALL_TIMEOUT_MS)}ms整体超时`)), cfg('raceOverallTimeoutMs', RACE_OVERALL_TIMEOUT_MS));
-  });
   try {
-    const winner = await Promise.race([
-      raceFirst(firstBatch.map(h => wrapExecute(h, platform, songInfo, quality).then(url => ({ verified: !!h.verified, url, source: h.id })))),
-      overallTimeout
-    ]);
-    clearTimeout(timeoutHandle);
-    // v7.0：竞速首胜打点（谁赢了 + 是否整体超时兜底）
+    const winner = await raceFirst(launchers, { batchSize, deadline });
     logDebug(`[竞速] ${platform} ${quality} 首胜: 源=${(winner && winner.source) || "unknown"}`);
     return winner;
   } catch (e) {
-    // v1.0：raceFirst 全部失败时透出 {allFailed, errors}，逐个归并失败码（业务码优先）
     if (e && e.allFailed && Array.isArray(e.errors)) {
       for (const err of e.errors) { recordFail(err.sourceId || "race", quality, err); }
     } else {
       recordFail("race", quality, e);
     }
-  }
-  for (const handler of rest) {
-    try {
-      return { url: await wrapExecute(handler, platform, songInfo, quality), source: handler.id };
-    } catch (e) { recordFail(handler.id, quality, e); }
   }
   const aggErr = new Error(errors.join("; "));
   aggErr.code = aggCode; // v1.0：聚合错误带代表性失败码
@@ -2087,6 +2129,41 @@ function extractErrorCode(e) {
   return m && ERROR_CODES[m[1]] ? m[1] : ERROR_CODES.NETWORK_ERROR;
 }
 
+// v8.8：档位短路——某源某音质档历史 success=0 且失败样本达标，则该档直接跳过该源
+//（典型：tx/mg/kg 的 flac 只有 suyinKuwo 单源，而它 flac 档是 oiapi VIP 死链，每次点 flac 都白试一次必败档）
+// 防死锁：每 qualityShortCircuitProbeMs 放行一次真实探路，避免源恢复后永久被跳。
+const qualitySkipProbeAt = new Map();
+const qualityShortCircuitKey = (id, quality) => `${id}:${String(quality || "").toLowerCase()}`;
+function isQualityHopeless(sourceId, quality) {
+  const b = breakerMap.get(sourceId);
+  if (!b || !b.byQuality) return false;
+  const q = b.byQuality[String(quality)];
+  if (!q) return false;
+  if ((q.success || 0) > 0) return false;
+  if (((q.fail || 0) + (q.businessFail || 0)) < cfg('qualityShortCircuitSamples', 3)) return false;
+  const key = qualityShortCircuitKey(sourceId, quality);
+  const probeMs = cfg('qualityShortCircuitProbeMs', 21600000);
+  if (!qualitySkipProbeAt.has(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return true; } // 首次达标即短路
+  if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return false; } // 到期放行探路
+  return true;
+}
+
+// v8.8：冷启动源预热——huibq 跑 onrender 免费实例，冷态 30s+ 远超单源超时(5s)，冷态必然失败；
+// 首次进链时后台 fire-and-forget 预热（不阻塞、不计统计），实例热起来后下一次即可参与竞速。
+const coldStartWarmAt = new Map();
+function warmUpColdStartSources(platform) {
+  for (const h of Object.values(SOURCE_HANDLERS)) {
+    if (!h || !h.coldStart || runtimeToggles[h.id] !== true) continue;
+    if (Date.now() - (coldStartWarmAt.get(h.id) || 0) < cfg('coldStartWarmTtlMs', 300000)) continue;
+    if (!buildSourceChain(platform, "128k").some(x => x.id === h.id)) continue;
+    coldStartWarmAt.set(h.id, Date.now());
+    logDebug(`[预热] ${h.id} 冷启动预热已发出`);
+    Promise.resolve()
+      .then(() => h.fn("kw", "228908", "128k", { name: "晴天", singer: "周杰伦", duration: 269000, songmid: "228908" }))
+      .catch(() => {});
+  }
+}
+
 async function getUrlWithFallback(platform, songInfo, quality) {
   if (!platform || typeof platform !== "string" || !PLATFORM_QUALITIES[platform]) {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的平台参数`);
@@ -2108,6 +2185,8 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     throw new Error(`${ERROR_CODES.NOT_FOUND}: 该请求已知失败，跳过`);
   }
 
+  if (cfg('coldStartWarmEnabled', true)) warmUpColdStartSources(platform); // v8.8：冷启动源后台预热
+
   const errors = [];
   const details = []; // v3.0：结构化失败明细（跨音质级汇总，供 App 端展示）
   // v1.0：代表性失败码——业务码(NOT_FOUND/MISMATCH/LINK_EXPIRED)一旦出现即固定(稳定结论)，
@@ -2120,16 +2199,29 @@ async function getUrlWithFallback(platform, songInfo, quality) {
 
   // 3. 音质降级链（请求音质首位→向下降级；链内按源能力过滤，末级必有源）
   const qualityChain = buildQualityChain(quality || (QUALITY_FIRST ? "flac" : "128k"));
+  // v8.8：单次请求总预算（跨音质档共享）
+  const raceDeadline = Date.now() + cfg('raceBudgetMs', 12000);
   for (const q of qualityChain) {
     const selectedQuality = q; // v1.0 (D10)：buildQualityChain 已产出具体音质，无需再选
-    const chain = sortChainByHealth(buildSourceChain(platform, selectedQuality));
+    const chainAll = sortChainByHealth(buildSourceChain(platform, selectedQuality));
+    const chain = cfg('qualityShortCircuit', true)
+      ? chainAll.filter(h => !isQualityHopeless(h.id, selectedQuality))
+      : chainAll;
+    if (chainAll.length && !chain.length) {
+      // 整条链该档历史 0 成功 → 档位短路，直接降档（省一次必败尝试）
+      logDebug(`[${platform}][${q}] 档位短路：全部源该档历史 0 成功，直接降档`);
+      errors.push(`[${q}] 档位短路(全部源该档历史0成功)`);
+      details.push({ source: "quality-short-circuit", quality: q, code: ERROR_CODES.NETWORK_ERROR, reason: "全部源该档历史0成功，已短路降档" });
+      mergeLastCode(ERROR_CODES.NETWORK_ERROR);
+      continue;
+    }
     if (!chain.length) {
       errors.push(`[${q}] 无可用音源`);
       continue;
     }
     logDebug(`[${platform}][${q}] 音源链: ${chain.map(h => h.id).join(">")} (按健康排序)`);
     try {
-      const { url, source } = await fallbackRace(chain, platform, songInfo, selectedQuality);
+      const { url, source } = await fallbackRace(chain, platform, songInfo, selectedQuality, raceDeadline);
       setCachedUrl(cacheKey, url, selectedQuality, source); // v1.0：记录实际音质；v6.0：同存实际子源
       // v6.0：音质协商链降档日志（请求flac实际320k/128k时明示，配合 App 真实音质显示）
       const reqQ = String(quality || (QUALITY_FIRST ? "flac" : "128k")).toLowerCase();
@@ -2353,7 +2445,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.7 已加载（v8.7：huibq假成功治理——上游"无法获取播放链接"仍返回 code=0 + 可播错链，按 msg 失败词判失败；v8.6：huibq默认开启——全平台全音质实测可用、进五平台链尾兜底、探针自动托管；v8.5：巡检工具与监控口径升级——scripts/source-audit.js + docs/SOURCE_AUDIT.md 基线、probe.js 取链可播二次校验、huibq 探针；v8.4：全源全接口深度巡检修复——suyinKuwo 128k br=9、xinghaiBackend 匿名调用适配，可用源 15→21/35；v8.3：ikun默认开启——公益版免卡密默认进 kw 链尾兜底、探测自动托管/失败自动关/恢复自动开；v8.2：ikun探针接入——默认关闭源补齐健康探针，手动开启后自动监控健康（POST /music/url 固定歌 + Range 可播校验）；v8.1：ikun源复活——域名 api.ikunshare.com→c.wwwweb.top、接口 GET /url→POST /music/url、公益版免卡密，2026-11-06实测 rid=228908 出真实128k链；v8.0：全量审计修复版——2026-11-05 版本重新整理，原 v1.0~v8.0 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md），上报 ${Object.keys(sourceConfig).length} 个音源；v4.0 health action(App健康面板)；v3.0歌词/封面透出；v3.0失败原因结构化+健康自愈；v2.0配置化(USER_CONFIG)；保留v1.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v8.8 已加载（v8.8：竞速引擎改造——全链分批错峰并发/跨档12s总预算/档位短路/冷启动预热/gdWy降批/verified精确等待，冒烟42组；v8.7：huibq假成功治理——上游"无法获取播放链接"仍返回 code=0 + 可播错链，按 msg 失败词判失败；v8.6：huibq默认开启——全平台全音质实测可用、进五平台链尾兜底、探针自动托管；v8.5：巡检工具与监控口径升级——scripts/source-audit.js + docs/SOURCE_AUDIT.md 基线、probe.js 取链可播二次校验、huibq 探针；v8.4：全源全接口深度巡检修复——suyinKuwo 128k br=9、xinghaiBackend 匿名调用适配，可用源 15→21/35；v8.3：ikun默认开启——公益版免卡密默认进 kw 链尾兜底、探测自动托管/失败自动关/恢复自动开；v8.2：ikun探针接入——默认关闭源补齐健康探针，手动开启后自动监控健康（POST /music/url 固定歌 + Range 可播校验）；v8.1：ikun源复活——域名 api.ikunshare.com→c.wwwweb.top、接口 GET /url→POST /music/url、公益版免卡密，2026-11-06实测 rid=228908 出真实128k链；v8.0：全量审计修复版——2026-11-05 版本重新整理，原 v1.0~v8.0 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md），上报 ${Object.keys(sourceConfig).length} 个音源；v4.0 health action(App健康面板)；v3.0歌词/封面透出；v3.0失败原因结构化+健康自愈；v2.0配置化(USER_CONFIG)；保留v1.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -2376,6 +2468,7 @@ if (typeof module !== "undefined" && module.exports) {
     tierShouldProbe,
     applyProbeResult,
     buildProbeConfig, // v6.0：导出供测试断言探测清单过滤（关闭源不探测/自愈闭环保留）
+    SOURCE_HANDLERS, // v8.8：导出供测试断言源标签（batch/coldStart）
     probeState,
     runtimeToggles,
     SOURCE_TOGGLES, // v8.6：导出供测试/巡检断言各源默认开关状态（A 方案默认开启源必须可见）
