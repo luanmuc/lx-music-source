@@ -76,3 +76,16 @@ jobs:
           node-version: 20
       - name: 生态扫描（pdone 健康表交叉）
         run: node scripts/ecosystem-scan.js || echo "生态扫描失败（网络/pdone 不可达时忽略）"
+
+  # ---------- v8.10.3：发版自动 purge jsDelivr CDN ----------
+  # push master 或发版后立刻刷新 CDN 缓存，App 端检查更新马上能拉到最新版
+  purge-cdn:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
+    needs: test   # 测试通过才 purge，避免坏版本污染 CDN
+    steps:
+      - name: purge jsDelivr CDN（lx-source.js）
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/luanmuc/backend-api@master/lx-source.js"
+          echo ""
+          echo "CDN 缓存已刷新"
