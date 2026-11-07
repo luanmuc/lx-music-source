@@ -85,7 +85,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 
 | 改动类型 | 必同步文档 |
 |---|---|
-| 版本迭代（@version 升版） | `lx-source.js` 头部 `@version`/`@description`/运行时 `logInfo` 版本串 + `README.md`「当前版本」行与版本历史表 + `docs/ITERATION_ROADMAP.md` 该版本 `[ ]`→`[x]`（候选顺延） |
+| 版本迭代（@version 升版） | `lx-source.js` 头部 `@version`/`@description`/运行时 `logInfo` 版本串 + `README.md`「当前版本」行与版本历史表 + `docs/ITERATION_ROADMAP.md` 该版本 `[ ]`→`[x]`（候选顺延）；**跨仓必改**：App 仓库 `docs/MUSIC_SOURCE_GUIDE.md` §四「聚合源内部结构」的版本号与新增特性行——该文档在本仓之外，且 App 只在构建时拉取音源，**不主动改就永远停在旧版本号**（v8.10.1 曾滞留到 v8.10.3 才被发现） |
 | 子源新增/关闭/开关默认值 | `lx-source.js` 开关注释 + `README.md`「已知失效/关闭源」表 + `DEV_GUIDE.md` 实测状态表 |
 | 健康口径/评分/输出格式 | `lx-source.js` 公式与字段注释 + `README.md` 版本历史行 + ROADMAP |
 | 工程脚本（probe/ecosystem-scan/self-check） | `README.md` 版本历史 + `DEV_GUIDE.md` 相应小节 + `AGENTS.md` 命令段（如涉及） |
