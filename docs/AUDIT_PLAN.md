@@ -193,7 +193,8 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 
 - 总维度：**96**（保留 40 + 新增 56）
 - 本轮 ✅ 已审无问题：52
-- 本轮 ⚠️ 有问题：**14**（明细见报告）
+- 本轮 ⚠️ 有问题：**15**（二次复核后由 14 增为 15——新增 **F-15** `probeSingleSource` 形参遮蔽 `cfg()`；明细见报告 §0 与 §9）
+- 已修复：**15 / 15**（v8.10.3，2026-11-07；逐项改法与验证见报告 §10）
 - ⏳ 部分审 / 待深审：12
 - 📝 沿用 v8.1 未重跑：15
 - 🚫 环境不可达：2
@@ -207,3 +208,34 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 3. 低危合并成一批，不改行为。
 4. 最后跑 Q 组镜像同步（版本串、本计划统计、`DEV_GUIDE` 配置表、`README` 状态表）。
 5. L4 取链与真机项留待用户在设备网络环境跑 `scripts/source-audit.js` + 播放验证，结论回填 A9/S2。
+
+## 6. 修复记录（v8.10.3 · 2026-11-07）
+
+> 用户授权「按最优方式全修、顺序自定」；15 项全部落代码并已推送（提交 `47f527a`）。逐项改法、代码位置与验证方式见 `AUDIT_REPORT-2026-11-07.md` **§10**，此处只留索引与门禁状态。
+
+### 6.1 修复门禁（三轮验证，全部实跑）
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| 语法 | `node --check lx-source.js` | 通过 |
+| 项目自检 | `node scripts/self-check.js` | 通过（`@version` / `@description` 首行 / `logInfo` 三处同步 v8.10.3） |
+| 官方冒烟 | `node test/lx-source-smoke-test.js` | **55 组全绿，exit=0**（原 49 组 + 新增 T50–T55） |
+
+### 6.2 新增反向用例（回退必红）
+
+| 用例 | 锁住的行为 | 对应项 |
+|---|---|---|
+| T50 | 半开 + 429 后 `state === 'open'` 且 `lastFailureTime` 已刷新 | F-01 |
+| T51 | huibq 探针**真的发出请求**且 `probeSuccess ≥ 1` | F-15 / F-06 |
+| T52 | 降档交付 128k 后，二次请求 flac 必须**重新取链**（不吃 128k 槽） | F-03 |
+| T53 | 纯 429 后 `byQuality['128k'].fail === 0`，`rateLimitCount === 1` | F-05 |
+| T54 | 只开 `suyinKuwo` 时 tx 分组 `activeCount ≥ 1` 且不误报降级 | F-07 |
+| T55 | 带首尾空白的上游 URL 交付时已 `trim` | F-11 |
+
+T46 同步改造：原用 `raceBudgetMs: 1` 依赖「剩余预算恰为 0」，受 `raceBudgetPerQuality` 默认值影响不稳定（320k 预算 4s→5s 后一度交付 320k）；改为显式分档预算 `{flac:1, '320k':1, '128k':5000}` + 保底 3000，语义确定。
+
+### 6.3 未采纳与未做
+
+- **F-12 第二选项**（预算到期不累计熔断）未做：需改 `aborted` 契约，影响面大；先以「单档预算 4s→5s 对齐 `TIMEOUT_CONFIG.parse`」消掉主因。
+- **F-09 未砍末档保底**：强制钳到 12s 会让前两档吃满预算时末档 0ms 必败 → 点歌无声。改为口径诚实化（上界显式写成「总预算 + 保底」= 15s，与 `PARAM_LIMITS` 一致）。
+- **L4 维度仍 `blocked`**：沙箱出口 IP 被三平台风控，F-06 的「上游真的返回 code=0 + 失败文案」仍来自 v8.7 历史记录，本轮无法现场复现；需真实网络环境跑 `scripts/source-audit.js` 回填 A9/S2。
