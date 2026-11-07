@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.2：记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -63,6 +63,12 @@ on(request musicUrl)
 
 - 每 10 分钟一轮（首轮延迟 1 分钟）；**并发**探测全部源，一轮 ~6s；
 - 判定规则：连续 **2** 次通过才启用 / 连续 **2** 次失败才停用（防抖动）；`runtimeToggles` 覆盖静态开关，`buildSourceChain` 以运行时为准；
+- **v8.10.3 状态机每条出口都要收口**：`recordBusinessFail`（业务失败）、节流跳过分支、**`recordRateLimit`（429 限流）** 三条出口在 `state === 'half-open'` 时必须迁回 `open` 并刷新 `lastFailureTime`（`canExecute` 在 half-open 恒 false，漏一条即该源永久不被调用）；同时**探针通过要一并复位断路器**（`closed`/`failureCount=0`/`lastFailureTime=0`/`rateLimitUntil=0`/`rateLimited=false`），否则面板会出现「探针正常 + 熔断中」矛盾态
+- **v8.10.3 429 不是失败**：限流是「源没坏、只是过载」，`recordRateLimit` **不得**写 `totalRequests++`、`byQuality.req++/fail++`——旧实现这么做会被 `isQualityHopeless`（fail+linkExpired≥3）当成「该档 3 次全失败」直接短路 1 小时，并把面板成功率拉低
+- **v8.10.3 缓存槽 = 实交付音质**：`setCachedUrl` 的 key 必须按「实际交付音质」构造（`writeKey = deliverQ === reqQ ? cacheKey : buildCacheKey(platform, songInfo, selectedQuality)`）。旧实现用请求音质的 key 存实交付音质的值，请求 flac 实给 128k 时这条 128k 会占住 flac 槽并按 128k 的 6h TTL 生效——6 小时内再点 flac 直接吃 128k、永不再试高音质
+- **v8.10.3 失败缓存命中要还原 code**：命中路径不能只抛 `NOT_FOUND` 文案，必须取 `getFailCachedEntry(key).code` 还原代表性失败码（否则「网络全挂 30s 短缓存」会被 App 当「这首歌不存在」）；`getUrlWithFallback` 末尾的聚合错误前缀也改用 `lastFailCode`，与 `err.code` 一致
+- **v8.10.3 平台分组由链生成**：`PLATFORM_GROUPS` 不再手写，改为按 `128k/320k/flac/flac24bit` 把 `buildSourceChain(p, q)` 的结果取并集——旧手写清单漏了「链构建会对所有非 kw 平台追加 `suyinKuwo`」，导致 wy/tx/mg/kg 只剩它活着时被判「无活跃源/全挂」
+- **v8.10.3 探针形参不得遮蔽 `cfg()`**：`probeSingleSource(id, pc)` 的第一个数据参数不能叫 `cfg`，否则冷启动分支里的 `cfg('coldStartProbeTimeoutMs')` 变成对对象的调用 → TypeError 被内层 catch 吞成 `usable:false`；全仓唯一 `coldStart` 源是 huibq，等于它 100% 探针失败
 - **v8.10.2 记账与半开收口**：`wrapExecute` 必须**先 `validateUrl` 再 `recordSuccess`**——反序会让 `validateUrl` 抛错的请求同时计入成功与业务失败（双记账）；与之配套，`recordBusinessFail` 与节流跳过分支在 `state === 'half-open'` 时必须迁回 `open` 并刷新 `lastFailureTime`，因为 `canExecute` 在 half-open 恒返回 false，不收口等于永久熔断该源。两处必须成对修改（只改顺序会引入死锁）
 - **v8.10 缓存分级 TTL**：`getCachedUrl` 按 entry 音质判过期——`flac`/`320k`/`flac24bit` 用 `cacheTtlHighQualityMs`(30min，链接有效期短)，其余用 `cacheTtlMs`(6h)；entry 存 `ts`，过期即 `delete` 后重新取链（v8.10.1 补 LRU `delete` 方法，缺此方法时高音质缓存过期重播会抛 TypeError）
 - **v8.10 历史快照扩容**：`HEALTH_HISTORY_MAX` 60→144（10min/条 ≈ 24h，趋势图跨天不断）
@@ -265,6 +271,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.10.3** | 全覆盖审计 15 项隐性缺陷全修 | 竞速链路 + 断路器 + 缓存 + 健康探测 + 文档 | 全覆盖审计修复（2026-11-07）：①`probeSingleSource` 形参 `cfg` 遮蔽全局 `cfg()`（huibq 唯一冷启动源探针 100% TypeError、请求从未发出）；②429 不再计入 `byQuality.fail`/成功率分母 + 半开遇 429 收口；③降档按**实交付音质**入缓存槽；④失败缓存命中还原代表性 `code`；⑤平台分组改由竞速链生成（消除手写清单漂移）；⑥探针通过一并复位断路器/限流；⑦末档预算上界显式钳制；⑧`validateUrl` 返回 `trim` 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时；⑩删死键 `raceOverallTimeoutMs`、暴露 `raceBudgetMs`；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 `platforms` 声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组 | `node --check` + 冒烟 55 组全绿（T50–T55 回退必红） | ✅ 已完成（2026-11-07，未推送待拍板） |
 | **v8.10** | 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容（5 条全做） | 竞速链路 + 健康探测 + 缓存 | 分档预算 flac6s/320k4s/128k4s + 末档保底 3s + 冷启动探针 30s 超时与豁免自动关闭 + 短路窗口 6h→1h + 高音质缓存分级 TTL（flac/320k 30min）+ 历史快照 60→144；USER_CONFIG 新增 5 键 | 冒烟 48 组全绿（v8.10.2 起 49 组） | ✅ 已完成（2026-11-06） |
 | **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 43 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.7** | huibq 假成功治理 | 音源 | `huibqGetUrl` 增加 msg 失败词判定（无法获取/失败/错误/不存在/无效→NOT_FOUND）；原因：实测上游对拿不到的平台仍返回 code=0 + 可播错链（panspace 酷我 206），旧逻辑会静默播错歌；冒烟 T39 固化 | 冒烟 39 组全绿 | ✅ 已完成（2026-11-06） |

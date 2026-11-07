@@ -11,7 +11,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.10.2**（记账顺序修复 + 半开收口；v8.10.1 缓存 LRU delete 补修 + 用例真化；v8.0 全量审计修复 + ikun/huibq 复活与默认开启 + 全源巡检修复 + 巡检工具升级 + 竞速引擎改造 + huibq 收窄 + **分档预算/冷启动豁免/缓存分级**；`lx-source.js` 内 `@version 8.10.2`） |
+| 当前版本 | **v8.10.3**（全覆盖审计 15 项隐性缺陷全修；v8.10.2 记账顺序修复 + 半开收口；v8.10.1 缓存 LRU delete 补修 + 用例真化；v8.0 全量审计修复 + ikun/huibq 复活与默认开启 + 全源巡检修复 + 巡检工具升级 + 竞速引擎改造 + huibq 收窄 + **分档预算/冷启动豁免/缓存分级**；`lx-source.js` 内 `@version 8.10.3`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -53,7 +53,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.10.2**（当前） | 记账顺序修复 + 半开收口（2026-11-06）：①`wrapExecute` 改为**先 validateUrl 后 recordSuccess**——旧顺序把"URL 非法"的请求既记成功又记业务失败，成功率/健康分双记账失真；②`recordBusinessFail` 与本地节流分支补**半开收口**：half-open 试探的业务失败/节流跳过一律 `half-open → open` 并刷新 `lastFailureTime`，否则源会永久停在 half-open（`canExecute` 恒 false）；③冒烟新增 T49 断言收口，T46 放宽限流干扰；`recordBusinessFail` 加入测试导出块 |
+| **v8.10.3**（当前） | 全覆盖审计修复（2026-11-07）：15 项隐性缺陷全修——①`probeSingleSource` 形参 `cfg` 遮蔽全局 `cfg()`（huibq 唯一冷启动源探针 100% TypeError、请求从未发出）；②429 不再计入 `byQuality.fail`/成功率分母 + 半开遇 429 收口；③降档按**实交付音质**入缓存槽；④失败缓存命中还原代表性 `code`；⑤平台分组改由竞速链生成（消除手写清单漂移）；⑥探针通过一并复位断路器/限流；⑦末档预算上界显式钳制；⑧`validateUrl` 返回 `trim` 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时；⑩删死键 `raceOverallTimeoutMs`、暴露 `raceBudgetMs`；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 `platforms` 声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组 |
+| **v8.10.2** | 记账顺序修复 + 半开收口（2026-11-06）：①`wrapExecute` 改为**先 validateUrl 后 recordSuccess**——旧顺序把"URL 非法"的请求既记成功又记业务失败，成功率/健康分双记账失真；②`recordBusinessFail` 与本地节流分支补**半开收口**：half-open 试探的业务失败/节流跳过一律 `half-open → open` 并刷新 `lastFailureTime`，否则源会永久停在 half-open（`canExecute` 恒 false）；③冒烟新增 T49 断言收口，T46 放宽限流干扰；`recordBusinessFail` 加入测试导出块 |
 | **v8.10.1** | 缓存 LRU delete 补修 + 用例真化（v8.10.1，2026-11-06）：`getCachedUrl` 分级 TTL 过期分支调用 `successCache.delete()` 而 LRU 无该方法 → 高音质缓存超 30min 重播必抛 TypeError（实测复现）；补 `delete(key)`；注释/DEV_GUIDE 同步；冒烟 T46/T47/T48 由空壳断言改为真行为验证（T48 先在旧实现复现崩溃再修实现转绿） |
 | **v8.10** | 分档预算 + 冷启动豁免 + 缓存分级（2026-11-06）：①分档预算 flac 6s/320k 4s/128k 4s + 末档保底 3s（防高音质吃满总预算饿死低档致点歌无声）；②冷启动源探针超时放宽到 30s + 豁免自动关闭（onrender 冷态 30s 不再被 20min 误摘）；③短路探路窗口 6h→1h（源临时波动后用户不用等 6h 才恢复高音质）；④高音质缓存分级 TTL——flac/320k 30min（原 6h 链接已死仍返回死链），128k 保持 6h；⑤历史快照 60→144（10h→24h，趋势图跨天不断）；新增 5 配置键 + 冒烟 T46/T47/T48 |
 | **v8.9** | huibq 平台能力收窄 + 收尾修复（2026-11-06）：实测 tx/mg/kg 必败（"无法获取播放链接"），从三平台链尾移除，仅保留 kw/wy 进链（省 1~1.5s 白耗）；source-audit.js 跑完自动退出（防进程常驻）；hyw 候选状态修正为"已判否（自动复检）" |

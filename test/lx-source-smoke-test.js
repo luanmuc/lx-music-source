@@ -1035,7 +1035,9 @@ async function test(name, fn) {
     // 独立模块实例：总预算 1ms（进档即已耗尽）→ flac/320k 档零请求直接跳；末档 128k 有 3000ms 保底
     // 期望：前两档"预算耗尽"跳过，128k 真实取链并交付。旧实现（无末档保底）会整次失败 → 本用例即防"点歌无声"
     const saved46 = globalThis.__lxSourceConfig;
-    globalThis.__lxSourceConfig = { raceBudgetMs: 1, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100, maxConcurrency: 100, rateWindowMax: 100000 }; // v8.10.2：放宽限流——本用例只测末档保底，不该被前档在飞请求占位误伤
+    // v8.10.3：改为显式分档预算（flac/320k 各 1ms 必败，128k 走 3s 保底）——旧写法 raceBudgetMs:1 依赖“剩余预算恰为 0”，
+    // 结果受 per-quality 默认值影响而不确定（默认 320k 预算从 4s 提到 5s 后本用例一度交付 320k）
+    globalThis.__lxSourceConfig = { raceBudgetMs: 3000, raceBudgetPerQuality: { flac: 1, '320k': 1, '128k': 5000, flac24bit: 1 }, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100, maxConcurrency: 100, rateWindowMax: 100000 };
     delete require.cache[require.resolve(SRC)];
     require(SRC);
     resetMock();
@@ -1149,7 +1151,109 @@ async function test(name, fn) {
     console.log('  ✅ 半开业务失败收口回 open 且刷新冷却；closed 源不受影响');
   }
 
-  console.log('\n冒烟测试完成：49 组用例');
+
+  // ===== v8.10.3 审计修复轮的回归用例（T50–T55）：每条都对应一个"回退即变红"的断言 =====
+  function freshMod(extraCfg) {
+    const saved = globalThis.__lxSourceConfig;
+    globalThis.__lxSourceConfig = { ...(saved || {}), rateWindowMax: 100000, maxConcurrency: 100000, rateWindowMs: 3600000, ...(extraCfg || {}) };
+    delete require.cache[require.resolve(SRC)];
+    const mod = require(SRC);
+    for (const id of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[id] = false;
+    return mod;
+  }
+  const totalCounts = () => Object.values(counts).reduce((a, b) => a + b, 0);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  console.log('[T50] v8.10.3 半开 + 429：状态不能永久停在 half-open（F-01）');
+  {
+    const mod = freshMod({ rateLimitBackoffMs: 1000 });
+    mod.runtimeToggles.kuwoOfficial = true;
+    const b = mod.getBreaker('kuwoOfficial');
+    b.state = 'open'; b.failureCount = 3; b.lastFailureTime = Date.now() - 181000;
+    mockRoute = () => ({ statusCode: 429, body: '', delay: 2 });
+    await requestUrl('kw', '128k', { name: '半开429', singer: 's', id: 'half429a', songmid: 'half429a' }).catch(() => {});
+    await wait(80);
+    assert.strictEqual(b.state, 'open', '半开遇 429 应收口回 open（否则 canExecute 恒 false，源永久不被调用），实际=' + b.state);
+    assert.ok(Date.now() - b.lastFailureTime < 5000, 'lastFailureTime 必须刷新，否则冷却判定用旧时间戳会立刻再次放行');
+  }
+
+  console.log('[T51] v8.10.3 huibq 探针不再被同名参数遮蔽（F-15）');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.huibq = true; // 探针只探启用中的源
+    globalThis.__probeRound = 2; // 下一轮 = 3，secondary 源（huibq）才会被探
+    mockRoute = (u) => {
+      if (u.includes('lxmusicapi.onrender.com')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: { code: 0, msg: 'ok', url: 'https://example.com/hb.mp3' }, delay: 2 };
+      if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '', delay: 2 };
+      return { error: 'ECONNREFUSED', delay: 2 };
+    };
+    await requestHandler({ action: 'probe', source: 'kw', info: {} });
+    await wait(50);
+    const b = mod.getBreaker('huibq');
+    assert.ok((counts['https://lxmusicapi.onrender.com/url/kw/228908/128k'] || 0) >= 1,
+      'huibq 探针必须真的发出请求（旧实现形参遮蔽 cfg() 在冷启动分支 TypeError，请求从未发出）');
+    assert.ok(b.probeSuccess >= 1, '上游正常返回时探针应记成功，实际成功=' + b.probeSuccess + ' 探测次数=' + b.probeRequests);
+  }
+
+  console.log('[T52] v8.10.3 降档交付按"实交付音质"入缓存槽（F-03）');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.suyinKuwo = true;
+    mod.runtimeToggles.xinghaiBackend = true;
+    mockRoute = (u) => {
+      if (/br=1\b|quality=flac/.test(u)) return { statusCode: 404, body: 'nf', delay: 2 };
+      if (/br=9\b|quality=128k/.test(u)) {
+        const body = u.includes('oiapi.net') ? { data: { url: 'https://example.com/kw128.mp3' } } : { code: 200, url: 'https://example.com/xh128.mp3' };
+        return { statusCode: 200, headers: { 'content-type': 'application/json' }, body, delay: 2 };
+      }
+      return { statusCode: 404, body: 'nf', delay: 2 };
+    };
+    const mi = { name: '缓存槽', singer: 's', id: 'slot1', songmid: 'slot1' };
+    const r1 = await requestUrl('kw', 'flac', mi);
+    assert.strictEqual(r1.type, '128k', 'flac 全失败时应降档交付 128k，实际=' + r1.type);
+    const before = totalCounts();
+    const r2 = await requestUrl('kw', 'flac', mi);
+    assert.strictEqual(r2.type, '128k', '第二次请求 flac 仍应降档交付 128k');
+    assert.ok(totalCounts() > before, '降档结果不能占住 flac 槽：第二次请求 flac 必须重新取链（旧实现 0 请求直接吃 128k）');
+  }
+
+  console.log('[T53] v8.10.3 429 不再计入 byQuality.fail / 成功率分母（F-05）');
+  {
+    const mod = freshMod({ rateLimitBackoffMs: 1000 });
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = () => ({ statusCode: 429, body: '', delay: 2 });
+    await requestUrl('kw', '128k', { name: '限流记账', singer: 's', id: 'rl1', songmid: 'rl1' }).catch(() => {});
+    await wait(80);
+    const b = mod.getBreaker('suyinKuwo');
+    const q = b.byQuality['128k'] || {};
+    assert.strictEqual(q.fail || 0, 0, '纯 429 不应写入 byQuality.fail（否则 3 次限流就把该档短路 1h），实际 fail=' + (q.fail || 0));
+    assert.strictEqual(b.rateLimitCount, 1, '限流次数本身仍要记，实际=' + b.rateLimitCount);
+  }
+
+  console.log('[T54] v8.10.3 平台分组由竞速链生成（F-07）');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.suyinKuwo = true; // 只有它活着，而它对 tx/mg/kg/wy 都是链尾兜底
+    const snap = mod.getHealthSnapshot();
+    const tx = snap._platformSummary.tx;
+    assert.ok(tx && tx.activeCount >= 1, 'tx 平台分组必须包含链里的 suyinKuwo（旧手写清单漏列 → activeCount=0 误报无活跃源），实际=' + JSON.stringify(tx));
+    assert.strictEqual(tx.degraded, false, '有活跃且健康的源时平台不应被判降级');
+  }
+
+  console.log('[T55] v8.10.3 validateUrl 返回 trim 后的 URL（F-11）');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.xinghaiBackend = true;
+    mockRoute = (u) => {
+      if (u.includes('zddyr.top')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: { code: 200, url: ' https://example.com/trim.mp3\n' }, delay: 2 };
+      if (u.includes('example.com')) return { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '', delay: 2 };
+      return { error: 'ECONNREFUSED', delay: 2 };
+    };
+    const r = await requestUrl('kw', '128k', { name: 'trim', singer: 's', id: 'trim1', songmid: 'trim1' });
+    assert.strictEqual(r.url, 'https://example.com/trim.mp3', '带首尾空白的上游 URL 必须 trim 后再交付，实际=' + JSON.stringify(r.url));
+  }
+
+  console.log('\n冒烟测试完成：55 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();
