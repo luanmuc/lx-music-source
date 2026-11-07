@@ -4,3 +4,10 @@ ROOT=$(git rev-parse --show-toplevel)
 if [ -f "$ROOT/scripts/doc-sync-map.js" ]; then
   node "$ROOT/scripts/doc-sync-map.js"
 fi
+
+# 追加：文档一致性红/黄项摘要（docs-audit --dry-run）
+if [ -f "$ROOT/scripts/docs-audit.js" ]; then
+  echo ""
+  node "$ROOT/scripts/docs-audit.js" --dry-run 2>/dev/null | grep -E "🔴|🟡" | head -15
+  echo "（无输出=全绿；语义类见 docs/DOC_SEMANTIC_CHECKLIST.md）"
+fi

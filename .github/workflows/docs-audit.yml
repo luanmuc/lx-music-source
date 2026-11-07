@@ -16,6 +16,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: 拉取兄弟仓（跨仓一致性校验）
+        run: |
+          rm -rf ../lx-music-mobile
+          git clone --depth 1 --quiet https://github.com/luanmuc/mobile-app.git ../lx-music-mobile \
+            || echo "::warning::兄弟仓 clone 失败，跨仓规则将跳过"
       - name: L4 文档一致性巡检（低风险自动修复）
         # 规则见 scripts/docs-audit.js：冒烟用例数 ↔ AGENTS / @version 子串 ↔ README / pdone URL 防回退
         # 报告项（不修改）：README_HEALTH 与 candidate-status 新鲜度（>28h 告警）
@@ -32,3 +37,12 @@ jobs:
             git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
+      - name: 红项硬失败（无法自动修复的不一致必须人工处理）
+        run: |
+          node scripts/docs-audit.js --dry-run > /tmp/audit.log 2>&1 || true
+          if grep -q '🔴' /tmp/audit.log; then
+            grep '🔴' /tmp/audit.log
+            echo "::error::存在无法自动修复的文档不一致（上方 🔴）"
+            exit 1
+          fi
+          echo "✅ 无红项"
