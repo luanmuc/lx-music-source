@@ -96,6 +96,6 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | 星海备 | 关闭 | 域名不可解析 |
 | Huibq | **开启**（v8.6，v8.9 收窄） | 仅 kw/wy 实测可播（tx/mg/kg 必败已移出链），链尾兜底；免费实例冷启动慢 |
 | 聆川 | 关闭 | 未配置密钥（`USER_CONFIG.lingchuanApiKey`）；v13.1 巡检：域名 api.lingchuan.com 不可解析 |
-| ikun | 关闭 | 需卡密（`USER_CONFIG.ikunApiKey` 填入后开开关）；v13.1 巡检：域名 api.ikunshare.com 不可解析 |
+| ikun | **开启**（v8.3 起，`SOURCE_TOGGLES.ikun = true`） | 公益版免卡密，kw/wy 链尾兜底 + 自动探测自愈；域名已迁至 `c.wwwweb.top`（`api.ikunshare.com` 停用）。填 `USER_CONFIG.ikunApiKey` 可切付费版 |
 
 > 健康探测会自动启用/停用可用源，以上为静态默认值。

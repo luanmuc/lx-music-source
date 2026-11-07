@@ -10,10 +10,14 @@
 ## 目录结构
 
 ```
-lx-source.js        # 唯一权威音源（多子源聚合器，勿拆目录，勿改其他文件）
-README.md           # 用户视角：版本历史 + 在线导入 + 可用性表
-DEV_GUIDE.md        # 开发者视角：代码地图 + 协议合规 + 路线图 + 发布 SOP（改代码前先读）
-AGENTS.md           # 本文件：协作规范
+lx-source.js           # 唯一权威音源（多子源聚合器，勿拆目录，勿改其他文件）
+README.md              # 用户视角：版本历史 + 在线导入 + 可用性表
+README_HEALTH.md       # 端点级健康日报（probe.js 每日刷新）
+docs/DEV_GUIDE.md      # 开发者视角：代码地图 + 协议合规 + 路线图 + 发布 SOP（改代码前先读）
+docs/AGENTS.md         # 本文件：协作规范
+docs/*.md              # 审计计划/报告/路线图/接口变更手册/源级基线
+scripts/               # probe / source-audit / self-check / docs-audit / ecosystem-scan 等
+test/                  # 冒烟用例
 ```
 
 ## 迭代触发协议（任一账号说「迭代」即按此执行）
@@ -103,7 +107,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 ```bash
 git fetch origin && git log HEAD..origin/master --oneline  # 检查远端是否有其他账号新提交，有则先 pull --rebase
 node --check lx-source.js       # L0 语法
-node test/lx-source-smoke-test.js  # L1 冒烟 36 组
+node test/lx-source-smoke-test.js  # L1 冒烟 55 组
 node scripts/self-check.js      # 发布自检：@version 与 @description/logInfo/README/ROADMAP 同步，任一失败阻断发布
 ```
 
@@ -146,7 +150,7 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 
 ### L1 模拟环境盲区自查（每次冒烟前过一遍）
 - `console`：Node 有、移动端无（D11）→ 日志类改动必须加宿主防御；
-- `setTimeout/clearTimeout`：移动端可用（本仓库已用 6 处）；
+- `setTimeout/clearTimeout`：移动端可用（本仓库已用 8 处 `setTimeout` + 4 处 `clearTimeout`）；
 - 内置属性冻结：`Array.prototype.push = ...` 无效，但可扩展新属性；
 - `lx.utils` 部分能力：zlib 未实现、buffer 仅 base64/hex/utf8、aes 仅 cbc/ecb。
 

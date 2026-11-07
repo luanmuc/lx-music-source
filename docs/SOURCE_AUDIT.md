@@ -7,7 +7,7 @@
 ## 一、巡检方法
 
 ```bash
-node scripts/source-audit.js            # 表格输出（35 组：20 源 × 5 平台）
+node scripts/source-audit.js            # 表格输出（35 组 = 20 个登记源在各平台上的可测组合，不是 20×5 全矩阵）
 node scripts/source-audit.js --only=kw  # 只测单平台
 node scripts/source-audit.js --json     # 机器可读，供对比基线
 ```

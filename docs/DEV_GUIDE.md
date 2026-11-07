@@ -18,14 +18,16 @@
 
 | 部分 | 行段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 42~135 | 缓存/熔断/超时参数、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
-| ② 音源开关 + 健康探测 | 137~500 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
-| ③ 日志 + LRU 双层缓存 + 断路器 | 502~715 | `successCache`(6h/500) / `failCache`(5min/300)；熔断 3 次/3min + 半开试探 + 成功率/均时统计 + 健康分计算 |
-| ④ HTTP 封装 | 717~821 | `httpRequest`（超时/状态码→错误码）、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
-| ⑤ 歌曲信息与匹配工具 | 823~986 | `normalizeKeyword`（删括号/去空白/去符号）、`titleMatch`/`durationMatch`、`buildSearchKeywords`（歌名+专辑/歌手 strict、纯歌名非 strict）、`songInfoMatch`、`buildCacheKey`（id+名称+音质） |
-| ⑥ 音源实现 | 987~1645 | 20 个子源：gdWy / wyOuter / kuwoOfficial / helloworldKw(v7.0) / ikun / xinghaiBackup / xinghaiBackend / huibq / lingchuan / suyinQQ / suyin163 / suyinKuwo / juheKw(v4.0) / juheTx / juheWy / juheKg / juheMg(v4.0) / suyinMigu / changqingVip / nianxinVip |
-| ⑦ 注册表 + 调度 | 1646~2065 | `getHealthSnapshot`（健康分快照 0~10 输出）、`SOURCE_HANDLERS`（每源标注 `maxQuality` 真实能力）、`buildSourceChain`（平台+音质过滤）、`sortChainByHealth`（成功率/均时排序）、`fallbackRace`（v8.8：全链分批错峰并发 + 跨档预算）、`buildQualityChain`（请求音质→降级≤3 级）、`getUrlWithFallback` 总入口（缓存→降级链→过期兜底→失败缓存） |
-| ⑧ 上报 + 事件监听 | 2066~2183 | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ① 常量配置 | 15~150 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
+| ② 音源开关 + 健康探测 | 151~578 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
+| ③ 日志 + LRU 双层缓存 + 断路器 | 579~823 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
+| ④ HTTP 封装 | 824~966 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测 |
+| ⑤ 歌曲信息与匹配工具 | 967~1129 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
+| ⑥ 音源实现 | 1130~1761 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
+| ⑦ 注册表 + 调度 + 健康分 | 1762~2398 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
+| ⑧ 上报 + 事件监听 | 2399~2603（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+
+> 行段为 **v8.10.3 基线（`lx-source.js` 共 2603 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
 
 ## 三、核心机制详解
 
@@ -243,7 +245,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ### v28 — 自动健康日报（重编号：原 v23.0）
 
-> 背景：`docs/probe-history.jsonl` 已积累 77 行（每日巡检持续写入，2026-10-28 起），v16.0 近 7 日聚合口径 + v17.0 失败归因口径均已就绪——自动化条件成熟。
+> 背景：`docs/probe-history.jsonl` 已积累 449 行（截至 2026-11-07，每日巡检持续写入，2026-10-28 起），v16.0 近 7 日聚合口径 + v17.0 失败归因口径均已就绪——自动化条件成熟。
 
 | 版本 | 任务 | 方案要点 | 验收标准 |
 |---|---|---|---|
@@ -334,7 +336,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
 
 1. **语法**：`node --check lx-source.js`；
-2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（32 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
+2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（55 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；
    - kw：《难却(DJ细霖版)》flac/320k/128k 三档（重点：不匹配到片段版、URL 可 206 播放）；
@@ -361,7 +363,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 | 版本 | 内容 | 状态 |
 |---|---|---|
-| v11.11~v25.11 | 历史版本全量（见 README 版本历史表） | ✅ 已发布（37 个 Release tag） |
+| v11.11~v25.11 | 历史版本全量（见 README 版本历史表） | ✅ 已发布（截至 2026-11-07 共 51 个 Release tag） |
 | v14.0 自建 API 网关 | 架构根治（需服务器） | ❌ **已判否**（违反无服务器定位；触发条件：第三方源月度失效 ≥2 次 或 用户确认维护服务器） |
 | v26.0 | 音源日志增强（配合 App 4 类日志系统） | ✅ 已交付（2026-10-29） |
 | v26.1 | 自动摘死源（播放连续失败 → 摘除 + 三路复活） | ✅ 已交付（2026-10-29） |
