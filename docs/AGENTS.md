@@ -18,7 +18,7 @@ AGENTS.md           # 本文件：协作规范
 
 ## 迭代触发协议（任一账号说「迭代」即按此执行）
 
-1. 读 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md)：找到第一个状态 `[ ]` 且依赖已满足的版本 = 本次迭代目标；
+1. 读 [docs/ITERATION_ROADMAP.md](ITERATION_ROADMAP.md)：找到第一个状态 `[ ]` 且依赖已满足的版本 = 本次迭代目标；
 2. 按「实证开发流程」实现（实证 → 改码 → L0~L4 验证链）；
 3. 通过后：改 `lx-source.js` 头部 `@version`/`@description`、README 版本历史、并把该版本 `[ ]` → `[x]`；
 4. 走 DEV_GUIDE 发布 SOP 出 tag + Release（附 `lx-source.js` 产物）；
