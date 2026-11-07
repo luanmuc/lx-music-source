@@ -50,6 +50,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 > 2026-11-05 版本重新整理：将原 53 个小版本（v11.11 ~ v29.9）按功能模块合并为 8 个大版本。
 > 旧版本详细历史归档见 [docs/ARCHIVE_OLD_TAGS.md](./docs/ARCHIVE_OLD_TAGS.md)。
+> 2026-11-07 全覆盖审计（96 维矩阵 + 15 项隐性缺陷 + 二次复核 + v8.10.3 修复）的数据资产：计划 [docs/AUDIT_PLAN.md](./docs/AUDIT_PLAN.md)、报告（含 §9 复核 / §10 修复落点与前后指标对比）[docs/AUDIT_REPORT-2026-11-07.md](./docs/AUDIT_REPORT-2026-11-07.md)、执行轨迹 [docs/AUDIT_PROGRESS-2026-11-07.md](./docs/AUDIT_PROGRESS-2026-11-07.md)。
 
 | 版本 | 核心功能 |
 |---|---|

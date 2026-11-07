@@ -275,3 +275,21 @@ node test/lx-source-smoke-test.js # 49 组基线
 - **L4 真网络取链**：沙箱出口 IP 被三平台风控，F-06 的「上游真的返回 code=0 + 失败文案」仍来自 v8.7 历史记录，本轮无法现场复现。
 - **F-12 的第二选项**（预算到期不累计熔断）未采纳：`aborted` 契约改动面大，先以「预算对齐单源超时」消掉主因。
 - **面板口径**：`raceBudgetMs` 现可配（默认 12s，上限 15s），需 App 侧健康面板补这一项说明（「最坏 12s+3s 末档保底」）。
+
+### 10.3 修复前后指标对比（实测数据）
+
+> 「改前」= 二次复核时 `mock 宿主 + 仓库真实导出函数` 跑出的原始输出；「改后」= v8.10.3 代码在当前冒烟里的实测断言（`test/lx-source-smoke-test.js` T50–T55）。
+
+| 项 | 改前实测 | 改后实测 | 证据 |
+| --- | --- | --- | --- |
+| F-01 | `{第一次429后:"half-open", 第二次请求后:"half-open", 探针通过后:"half-open", 用户结果:"失败"}` | 状态收敛为 `open`，`lastFailureTime` 刷新 | T50：日志 `半开试探失败(128k 限流429)，重新熔断` + 断言 |
+| F-15 | `{huibq请求是否发出:false, 探测次数:1, 成功:0, failCount:1, deadCount:1, score:-1}` | 探针真实发请求且记成功；第 3 轮探测后 huibq 保持自动启用 | T51：`counts['.../url/kw/228908/128k'] ≥ 1`、`probeSuccess ≥ 1` |
+| F-03 | `{首次请求flac得到:"128k", 二次请求flac得到:"128k", 二次耗时ms:0, 二次新增网络请求:0}` | 二次请求 flac 仍交付 128k，但**重新取链**（请求计数增长） | T52：`totalCounts()` 前后对比 |
+| F-05 | 累计 `{byQuality_128k:{req:3, success:0, fail:3}, 第四次该源是否被调用:false}`（该档被短路 1h） | 纯 429 后 `fail=0`、`rateLimitCount=1`（不再喂短路判据） | T53：断言 `byQuality['128k'].fail === 0` |
+| F-07 | `{tx:{degraded:true, activeCount:2, deadCount:2, avgScore:0}}`，而链里 `suyinKuwo` 仍可用 | 只开 `suyinKuwo` 时 `tx.activeCount ≥ 1`、`degraded === false` | T54：分组由 `buildSourceChain` 并集生成 |
+| F-09 | 总耗时 **13003ms**（名义预算 12000ms） | 上界显式钳在 `raceBudgetMs + raceBudgetFloorMs` = 15000ms，日志标注「可溢出至 15s」 | 代码路径 + `logDebug` 文案 |
+| F-12 | 5s 可成功的源在 4s 预算下 **4006ms 判全失败**并累计熔断 | 单档预算 5000ms = `TIMEOUT_CONFIG.parse` 5000ms | T46 改显式分档预算后仍绿 |
+| F-11 | 返回 `" https://a.example.com/x.mp3\n"`（首空格 + 尾换行原样透出） | 交付 `"https://example.com/trim.mp3"` | T55：`assert.strictEqual(r.url, 'https://example.com/trim.mp3')` |
+
+口径说明：以上全部是 **L2 行为级**（mock 上游）证据。L4（真实取链 + Range 可播 + 真机播放）本轮未做，不能替代。
+

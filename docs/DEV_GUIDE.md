@@ -271,7 +271,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
-| **v8.10.3** | 全覆盖审计 15 项隐性缺陷全修 | 竞速链路 + 断路器 + 缓存 + 健康探测 + 文档 | 全覆盖审计修复（2026-11-07）：①`probeSingleSource` 形参 `cfg` 遮蔽全局 `cfg()`（huibq 唯一冷启动源探针 100% TypeError、请求从未发出）；②429 不再计入 `byQuality.fail`/成功率分母 + 半开遇 429 收口；③降档按**实交付音质**入缓存槽；④失败缓存命中还原代表性 `code`；⑤平台分组改由竞速链生成（消除手写清单漂移）；⑥探针通过一并复位断路器/限流；⑦末档预算上界显式钳制；⑧`validateUrl` 返回 `trim` 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时；⑩删死键 `raceOverallTimeoutMs`、暴露 `raceBudgetMs`；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 `platforms` 声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组 | `node --check` + 冒烟 55 组全绿（T50–T55 回退必红） | ✅ 已完成（2026-11-07，未推送待拍板） |
+| **v8.10.3** | 全覆盖审计 15 项隐性缺陷全修 | 竞速链路 + 断路器 + 缓存 + 健康探测 + 文档 | 全覆盖审计修复（2026-11-07）：①`probeSingleSource` 形参 `cfg` 遮蔽全局 `cfg()`（huibq 唯一冷启动源探针 100% TypeError、请求从未发出）；②429 不再计入 `byQuality.fail`/成功率分母 + 半开遇 429 收口；③降档按**实交付音质**入缓存槽；④失败缓存命中还原代表性 `code`；⑤平台分组改由竞速链生成（消除手写清单漂移）；⑥探针通过一并复位断路器/限流；⑦末档预算上界显式钳制；⑧`validateUrl` 返回 `trim` 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时；⑩删死键 `raceOverallTimeoutMs`、暴露 `raceBudgetMs`；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 `platforms` 声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组 | `node --check` + 冒烟 55 组全绿（T50–T55 回退必红） | ✅ 已完成并推送（2026-11-07，`47f527a`；计划回填 `79ffb01`） |
 | **v8.10** | 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容（5 条全做） | 竞速链路 + 健康探测 + 缓存 | 分档预算 flac6s/320k4s/128k4s + 末档保底 3s + 冷启动探针 30s 超时与豁免自动关闭 + 短路窗口 6h→1h + 高音质缓存分级 TTL（flac/320k 30min）+ 历史快照 60→144；USER_CONFIG 新增 5 键 | 冒烟 48 组全绿（v8.10.2 起 49 组） | ✅ 已完成（2026-11-06） |
 | **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 43 组全绿 | ✅ 已完成（2026-11-06） |
 | **v8.7** | huibq 假成功治理 | 音源 | `huibqGetUrl` 增加 msg 失败词判定（无法获取/失败/错误/不存在/无效→NOT_FOUND）；原因：实测上游对拿不到的平台仍返回 code=0 + 可播错链（panspace 酷我 206），旧逻辑会静默播错歌；冒烟 T39 固化 | 冒烟 39 组全绿 | ✅ 已完成（2026-11-06） |
@@ -382,4 +382,51 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 > 执行结果（2026-10-29~11-01）：v26.0 ✅ → v26.1 ✅ → v26.2 ❌ 判否 → v26.3 ✅。**v26 系列收尾**。v27.1 fish ❌ 判否 → **v27.2 helloworld ✅ 接入** → v27.3 全面审计修复 ✅ → v27.4 健康分 10 分制 ✅ → v27.5 hyw ❌(后端502) → v27.6 jiexiang ⚠️(零增量留档) → v27.7 lx ❌(防搬运403) → v27.8 qdy ❌(410死链)。**v27 系列 6 候选实证全部收官（2026-10-30），仅 helloworld 接入**。
 > 推进序列（当前）：**v9 播放链路已放弃、v8.1 候选实证半自动化已完成（2026-11-05）**，无主线迭代项；运维观察项（gdWy 主端点 40% 可用率/haitangw 备用通道 404/oiapi QQ 403）由健康表监控、恶化升级为迭代任务；触发式待办（tx 恢复/hyw 后端恢复/qdy 通道恢复等外部条件驱动）+ 生态扫描持续产出新候选（按实证规则逐个推进，v8.1 已自动化草案生成）。
+
+## 十一、配置键总表（v8.10.3 基线）
+
+> 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（面板可写）与 `PARAM_LIMITS`（上限）。本表是两者的**镜像**，配置面有改动时必须同步本表——v8.10.3 就出现过「死键 `raceOverallTimeoutMs` 在面板里能写、但运行时根本不读」的问题，根因就是没有一张可对照的键表。
+
+### 11.1 面板可写（`config` action 生效，走 `ALLOWED_KEYS` + `PARAM_LIMITS`）
+
+| 键 | 默认 | 上限 | 说明 |
+| --- | --- | --- | --- |
+| `cacheTtlMs` | 21600000（6h） | max 7 天 | 低音质成功缓存 TTL |
+| `failCacheNotFoundMs` | 3600000（1h） | max 1 天 | 404「歌不存在」失败缓存 |
+| `failCacheExpiredMs` | 60000（1min） | max 1h | 410 死链失败缓存 |
+| `breakerThreshold` | 3 | max 20 | 熔断阈值（网络类连续失败） |
+| `breakerCooldownMs` | 180000（3min） | max 30min | 熔断冷却 |
+| `rateLimitBackoffMs` | 30000 | max 5min | 429 退避 |
+| `maxConcurrency` | 2 | max 5 | 单源并发上限 |
+| `rateWindowMs` | 3000 | max 10s | 限速窗口 |
+| `rateWindowMax` | 5 | max 20 | 窗口内请求上限 |
+| `healthCheckIntervalMs` | 600000（10min） | min 1min | 健康探测间隔 |
+| `raceMatchWaitMs` | 600 | max 5s | verified 精确等待窗口 |
+| `allFailShortTtlMs` | 30000 | max 10min | 全链网络类失败短缓存 |
+| `playDeadReviveMs` | 300000（5min） | max 2h | 播放摘除后的半开试探冷却 |
+| **`raceBudgetMs`** | **12000** | max 15s | **v8.10.3 新增可写**：单次取链总预算（跨音质档共享），替代已删除的死键 `raceOverallTimeoutMs` |
+
+### 11.2 只读（仅 `globalThis.__lxSourceConfig` 注入生效，面板不可写）
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `cacheTtlHighQualityMs` | 1800000（30min） | 高音质（flac/320k/flac24bit/hires）缓存 TTL |
+| `raceBudgetPerQuality` | `{flac:6000, 320k:5000, 128k:5000, flac24bit:6000}` | **v8.10.3 320k/128k 由 4000 提到 5000**，对齐 `TIMEOUT_CONFIG.parse` |
+| `raceBudgetFloorMs` | 3000 | 末档保底（允许突破总预算，最坏 12s+3s=15s） |
+| `raceBatchSize` | 3 | 每批并发源数 |
+| `raceBatchStaggerMs` | 300 | 批间错峰 |
+| `coldStartTimeoutMs` | 8000 | 冷启动源单源超时（取链） |
+| `coldStartProbeTimeoutMs` | 30000 | 冷启动源探针超时（onrender 冷态 30s） |
+| `coldStartWarmTtlMs` | 300000 | 冷启动预热间隔 |
+| `coldStartWarmEnabled` | true | 冷启动预热开关 |
+| `qualityShortCircuit` | true | 档位短路开关 |
+| `qualityShortCircuitSamples` | 3 | 短路样本门槛 |
+| `qualityShortCircuitProbeMs` | 3600000（1h） | 短路放行探路间隔 |
+| `ikunApiKey` / `lingchuanApiKey` / `xinghaiDeviceId` | 空 | 密钥类，仅注入生效，`config` 回显脱敏为 `***已设置***` |
+
+### 11.3 已删除的键（不要再写回去）
+
+| 键 | 状态 | 原因 |
+| --- | --- | --- |
+| `raceOverallTimeoutMs` | **v8.10.3 删除** | 默认值、`ALLOWED_KEYS`、`PARAM_LIMITS` 三处都有它，但 `getUrlWithFallback` 从来没有读过——面板写 1000ms 后实测仍跑 4006ms。真正截断预算的是 `raceBudgetPerQuality` 与总预算 `raceBudgetMs` |
 
